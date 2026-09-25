@@ -6,7 +6,8 @@ export interface WeighingItem {
   weight_kg: number;
   avg_weight_kg: number;
   notes?: string;
-  created_at?: string;
+  created_at?: string; // Data e hora de criação/registro da pesagem
+  updated_at?: string; // Data e hora da última alteração do item
 }
 
 export interface WeighingSession {

@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS public.weighing_items (
     weight_kg NUMERIC(10, 2) NOT NULL,
     avg_weight_kg NUMERIC(10, 2) NOT NULL,
     notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 6. Índices para consultas rápidas

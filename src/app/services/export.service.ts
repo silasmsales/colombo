@@ -19,18 +19,22 @@ export class ExportService {
     lines.push(`Município / Localização;${session.location}`);
     lines.push(`Responsável pela Balança;${session.responsible_name}`);
     lines.push(`Data da Pesagem;${session.session_date}`);
+    lines.push(`Horário Original de Registro;${session.created_at ? new Date(session.created_at).toLocaleString('pt-BR') : session.session_date}`);
+    lines.push(`Horário da Última Atualização;${session.updated_at ? new Date(session.updated_at).toLocaleString('pt-BR') : (session.created_at ? new Date(session.created_at).toLocaleString('pt-BR') : session.session_date)}`);
     lines.push(`Observações;${session.observations || 'N/A'}`);
     lines.push('');
 
     // Cabeçalho dos Lançamentos
-    lines.push('Seq;Animais na Balança;Peso Total Lote (kg);Peso Médio Cabeça (kg);Anotação/Brinco');
+    lines.push('Seq;Animais na Balança;Peso Total Lote (kg);Peso Médio Cabeça (kg);Anotação/Brinco;Horário Original da Pesagem;Horário da Última Atualização');
 
     if (session.items && session.items.length > 0) {
       session.items.forEach(item => {
         const weightFormatted = item.weight_kg.toFixed(2).replace('.', ',');
         const avgFormatted = item.avg_weight_kg.toFixed(2).replace('.', ',');
         const notes = item.notes ? item.notes.replace(/;/g, ',') : '';
-        lines.push(`${item.sequence_number};${item.animal_count};${weightFormatted};${avgFormatted};${notes}`);
+        const createdAtFormatted = item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '';
+        const updatedAtFormatted = item.updated_at ? new Date(item.updated_at).toLocaleString('pt-BR') : (createdAtFormatted || '');
+        lines.push(`${item.sequence_number};${item.animal_count};${weightFormatted};${avgFormatted};${notes};${createdAtFormatted};${updatedAtFormatted}`);
       });
     }
 
@@ -55,9 +59,11 @@ export class ExportService {
     lines.push('COLOMBO AGRO - RELATÓRIO GERAL DE PESAGENS');
     lines.push(`Gerado em;${new Date().toLocaleString('pt-BR')}`);
     lines.push('');
-    lines.push('Data;Fazenda;Vendedor;Localização;Responsável Balança;Cabeças;Peso Total (kg);Média (kg);Status;Observações');
+    lines.push('Data;Fazenda;Vendedor;Localização;Responsável Balança;Cabeças;Peso Total (kg);Média (kg);Status;Observações;Data/Hora Registro;Última Atualização');
 
     sessions.forEach(s => {
+      const createdAt = s.created_at ? new Date(s.created_at).toLocaleString('pt-BR') : '';
+      const updatedAt = s.updated_at ? new Date(s.updated_at).toLocaleString('pt-BR') : (createdAt || '');
       lines.push([
         s.session_date,
         `"${s.farm_name.replace(/"/g, '""')}"`,
@@ -68,7 +74,9 @@ export class ExportService {
         s.total_weight_kg.toFixed(2).replace('.', ','),
         s.avg_weight_kg.toFixed(2).replace('.', ','),
         s.status === 'completed' ? 'Finalizado' : 'Rascunho',
-        `"${(s.observations || '').replace(/"/g, '""')}"`
+        `"${(s.observations || '').replace(/"/g, '""')}"`,
+        createdAt,
+        updatedAt
       ].join(';'));
     });
 

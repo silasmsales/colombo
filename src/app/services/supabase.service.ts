@@ -193,7 +193,9 @@ export class SupabaseService {
           total_weight_kg: session.total_weight_kg,
           avg_weight_kg: session.avg_weight_kg,
           total_arrobas: session.total_arrobas,
-          status: session.status || 'completed'
+          status: session.status || 'completed',
+          created_at: session.created_at || new Date().toISOString(),
+          updated_at: session.updated_at || new Date().toISOString()
         };
 
         const { error: sessionError } = await this.client
@@ -210,7 +212,9 @@ export class SupabaseService {
               animal_count: item.animal_count,
               weight_kg: item.weight_kg,
               avg_weight_kg: item.avg_weight_kg,
-              notes: item.notes || ''
+              notes: item.notes || '',
+              created_at: item.created_at || new Date().toISOString(),
+              updated_at: item.updated_at || item.created_at || new Date().toISOString()
             }));
 
             await this.client.from('weighing_items').delete().eq('session_id', session.id);
@@ -344,7 +348,11 @@ export class SupabaseService {
           const sessionsWithItems = data.map(item => ({
             ...item,
             sync_status: 'synced' as const,
-            items: (item.items || []).sort((a: WeighingItem, b: WeighingItem) => a.sequence_number - b.sequence_number)
+            items: (item.items || []).map((it: any) => ({
+              ...it,
+              created_at: it.created_at,
+              updated_at: it.updated_at || it.created_at
+            })).sort((a: WeighingItem, b: WeighingItem) => a.sequence_number - b.sequence_number)
           }));
           this.mergeRemoteWithLocalSessions(sessionsWithItems);
           return sellerId ? sessionsWithItems.filter(s => s.seller_id === sellerId) : sessionsWithItems;
@@ -372,8 +380,12 @@ export class SupabaseService {
     session: WeighingSession,
     items: WeighingItem[]
   ): Promise<{ session: WeighingSession; synced: boolean }> {
+    const nowIso = new Date().toISOString();
     session.items = items;
-    session.updated_at = new Date().toISOString();
+    if (!session.created_at) {
+      session.created_at = nowIso;
+    }
+    session.updated_at = nowIso;
 
     // Salva no armazenamento local
     session.sync_status = 'pending';
@@ -408,7 +420,9 @@ export class SupabaseService {
           total_weight_kg: session.total_weight_kg,
           avg_weight_kg: session.avg_weight_kg,
           total_arrobas: session.total_arrobas,
-          status: session.status || 'completed'
+          status: session.status || 'completed',
+          created_at: session.created_at || nowIso,
+          updated_at: session.updated_at || nowIso
         };
 
         const { error: sessionError } = await this.client
@@ -423,7 +437,9 @@ export class SupabaseService {
             animal_count: item.animal_count,
             weight_kg: item.weight_kg,
             avg_weight_kg: item.avg_weight_kg,
-            notes: item.notes || ''
+            notes: item.notes || '',
+            created_at: item.created_at || nowIso,
+            updated_at: item.updated_at || item.created_at || nowIso
           }));
 
           if (itemsPayload.length > 0) {

@@ -194,7 +194,7 @@ import { WeighingSession, WeighingItem } from '../../models/weighing.model';
           <table class="admin-table">
             <thead>
               <tr>
-                <th>Data</th>
+                <th>Data / Horários</th>
                 <th>Fazenda / Origem</th>
                 <th>Produtor</th>
                 <th>Local</th>
@@ -207,7 +207,14 @@ import { WeighingSession, WeighingItem } from '../../models/weighing.model';
             </thead>
             <tbody>
               <tr *ngFor="let session of filteredSessions()" class="table-row">
-                <td class="td-date">📅 {{ session.session_date }}</td>
+                <td class="td-date-time">
+                  <div class="dt-created" title="Horário original da pesagem">
+                    📅 {{ session.created_at ? (session.created_at | date:'dd/MM/yyyy HH:mm') : session.session_date }}
+                  </div>
+                  <div class="dt-updated" *ngIf="session.updated_at && session.updated_at !== session.created_at" title="Data e hora da última alteração">
+                    ✏️ Atualizado: {{ session.updated_at | date:'dd/MM/yyyy HH:mm' }}
+                  </div>
+                </td>
                 <td class="td-farm"><strong>{{ session.farm_name }}</strong></td>
                 <td>{{ session.seller_name }}</td>
                 <td class="td-muted">📍 {{ session.location }}</td>
@@ -349,12 +356,13 @@ import { WeighingSession, WeighingItem } from '../../models/weighing.model';
             <table class="detail-table">
               <thead>
                 <tr>
-                  <th style="width: 80px;">#</th>
-                  <th class="text-center" style="width: 140px;">Animais (Cab)</th>
-                  <th class="text-right" style="width: 180px;">Peso Total (kg)</th>
-                  <th class="text-right" style="width: 180px;">Média / Cab (kg)</th>
+                  <th style="width: 65px;">#</th>
+                  <th class="text-center" style="width: 100px;">Animais</th>
+                  <th class="text-right" style="width: 130px;">Peso Total</th>
+                  <th class="text-right" style="width: 130px;">Média / Cab</th>
                   <th>Anotação / Brinco</th>
-                  <th *ngIf="isEditingSession" class="text-center" style="width: 70px;">Ação</th>
+                  <th style="width: 210px;">Horários (Original / Atualizado)</th>
+                  <th *ngIf="isEditingSession" class="text-center" style="width: 65px;">Ação</th>
                 </tr>
               </thead>
               <tbody>
@@ -363,10 +371,18 @@ import { WeighingSession, WeighingItem } from '../../models/weighing.model';
                   
                   <!-- Modo Visualização -->
                   <ng-container *ngIf="!isEditingSession">
-                    <td class="text-center"><strong>{{ item.animal_count }}</strong></td>
+                    <td class="text-center"><strong>{{ item.animal_count }}</strong> cab</td>
                     <td class="text-right td-mono font-bold">{{ item.weight_kg | number:'1.2-2' }} kg</td>
                     <td class="text-right td-mono text-accent">{{ item.avg_weight_kg | number:'1.2-2' }} kg</td>
                     <td class="td-notes">{{ item.notes || '-' }}</td>
+                    <td class="td-timestamp">
+                      <div class="ts-created">
+                        🕒 <strong>Original:</strong> {{ item.created_at ? (item.created_at | date:'dd/MM/yyyy HH:mm:ss') : '-' }}
+                      </div>
+                      <div class="ts-updated">
+                        ✏️ <strong>Atualizado:</strong> {{ (item.updated_at || item.created_at) ? ((item.updated_at || item.created_at) | date:'dd/MM/yyyy HH:mm:ss') : '-' }}
+                      </div>
+                    </td>
                   </ng-container>
 
                   <!-- Modo Edição -->
@@ -402,6 +418,14 @@ import { WeighingSession, WeighingItem } from '../../models/weighing.model';
                         placeholder="Brinco / Identificação" 
                       />
                     </td>
+                    <td class="td-timestamp">
+                      <div class="ts-created">
+                        🕒 <strong>Original:</strong> {{ item.created_at ? (item.created_at | date:'dd/MM/yyyy HH:mm:ss') : '-' }}
+                      </div>
+                      <div class="ts-updated">
+                        ✏️ <strong>Atualizado:</strong> {{ (item.updated_at || item.created_at) ? ((item.updated_at || item.created_at) | date:'dd/MM/yyyy HH:mm:ss') : '-' }}
+                      </div>
+                    </td>
                     <td class="text-center">
                       <button type="button" class="btn-del-item" (click)="removeModalItem(idx)" title="Excluir Balançada">
                         🗑️
@@ -411,7 +435,7 @@ import { WeighingSession, WeighingItem } from '../../models/weighing.model';
                 </tr>
 
                 <tr *ngIf="!activeDetailSession.items || activeDetailSession.items.length === 0">
-                  <td [attr.colspan]="isEditingSession ? 6 : 5" class="text-center py-4 text-muted">
+                  <td [attr.colspan]="isEditingSession ? 7 : 6" class="text-center py-4 text-muted">
                     Nenhuma balançada detalhada cadastrada.
                   </td>
                 </tr>
@@ -732,10 +756,22 @@ import { WeighingSession, WeighingItem } from '../../models/weighing.model';
       padding: 0.75rem 0.6rem;
     }
 
-    .td-date {
+    .td-date-time {
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+
+    .dt-created {
       color: #34d399;
       font-weight: 700;
       font-size: 0.84rem;
+    }
+
+    .dt-updated {
+      color: #fbbf24;
+      font-size: 0.73rem;
+      font-family: var(--font-mono);
+      margin-top: 2px;
     }
 
     .td-farm {
@@ -1120,6 +1156,34 @@ import { WeighingSession, WeighingItem } from '../../models/weighing.model';
       font-size: 0.85rem;
     }
 
+    .td-timestamp {
+      font-size: 0.76rem;
+      white-space: nowrap;
+      line-height: 1.4;
+    }
+
+    .ts-created {
+      color: #94a3b8;
+      font-family: var(--font-mono);
+    }
+
+    .ts-created strong {
+      color: #cbd5e1;
+      font-weight: 700;
+    }
+
+    .ts-updated {
+      color: #fbbf24;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      margin-top: 2px;
+    }
+
+    .ts-updated strong {
+      color: #f59e0b;
+      font-weight: 700;
+    }
+
     .modal-edit-input {
       width: 100%;
       background: #1e293b;
@@ -1191,6 +1255,7 @@ export class BuyerComponent implements OnInit {
   
   // Modal de Detalhes / Edição
   activeDetailSession: WeighingSession | null = null;
+  originalModalSessionSnapshot: WeighingSession | null = null;
   isEditingSession = false;
 
   // Normalização de texto sem acentos para busca rápida flexível
@@ -1278,18 +1343,24 @@ export class BuyerComponent implements OnInit {
 
   openDetailModal(session: WeighingSession, isEdit = false) {
     this.audio.playClick();
-    // Clona para permitir edição isolada
+    // Clona para permitir edição isolada e manter snapshot de comparação
+    this.originalModalSessionSnapshot = JSON.parse(JSON.stringify(session));
     this.activeDetailSession = JSON.parse(JSON.stringify(session));
     this.isEditingSession = isEdit;
   }
 
   closeDetailModal() {
     this.activeDetailSession = null;
+    this.originalModalSessionSnapshot = null;
     this.isEditingSession = false;
   }
 
   toggleModalEditMode(edit: boolean) {
     this.audio.playClick();
+    if (!edit && this.originalModalSessionSnapshot) {
+      // Restaura o estado anterior se cancelar
+      this.activeDetailSession = JSON.parse(JSON.stringify(this.originalModalSessionSnapshot));
+    }
     this.isEditingSession = edit;
   }
 
@@ -1321,13 +1392,16 @@ export class BuyerComponent implements OnInit {
     if (!this.activeDetailSession.items) {
       this.activeDetailSession.items = [];
     }
+    const nowIso = new Date().toISOString();
 
     const newItem: WeighingItem = {
       sequence_number: this.activeDetailSession.items.length + 1,
       animal_count: 1,
       weight_kg: 0,
       avg_weight_kg: 0,
-      notes: ''
+      notes: '',
+      created_at: nowIso,
+      updated_at: nowIso
     };
 
     this.activeDetailSession.items.push(newItem);
@@ -1347,12 +1421,57 @@ export class BuyerComponent implements OnInit {
   async saveEditedSession() {
     if (!this.activeDetailSession) return;
     this.recalculateActiveModalTotals();
+    const nowIso = new Date().toISOString();
+
+    const originalItems = this.originalModalSessionSnapshot?.items || [];
+    let anyItemChanged = false;
+
+    if (this.activeDetailSession.items) {
+      this.activeDetailSession.items.forEach((item, idx) => {
+        // Encontra o item original correspondente pelo ID ou número de sequência inicial
+        const originalItem = originalItems.find(
+          orig => (item.id && orig.id === item.id) || (orig.sequence_number === item.sequence_number)
+        );
+
+        const isNewItem = !originalItem;
+        const isModified = !isNewItem && (
+          Number(originalItem.animal_count) !== Number(item.animal_count) ||
+          Number(originalItem.weight_kg) !== Number(item.weight_kg) ||
+          (originalItem.notes || '').trim() !== (item.notes || '').trim()
+        );
+
+        if (isNewItem || isModified) {
+          anyItemChanged = true;
+          item.updated_at = nowIso;
+        } else {
+          // Mantém exatamente o timestamp anterior de modificação
+          item.updated_at = originalItem.updated_at || originalItem.created_at || item.updated_at || item.created_at || nowIso;
+        }
+
+        if (!item.created_at) {
+          item.created_at = originalItem?.created_at || nowIso;
+        }
+      });
+    }
+
+    const itemsCountChanged = (this.activeDetailSession.items?.length || 0) !== originalItems.length;
+    const sessionFieldsChanged = 
+      this.activeDetailSession.responsible_name !== this.originalModalSessionSnapshot?.responsible_name ||
+      this.activeDetailSession.session_date !== this.originalModalSessionSnapshot?.session_date ||
+      this.activeDetailSession.observations !== this.originalModalSessionSnapshot?.observations;
+
+    if (anyItemChanged || itemsCountChanged || sessionFieldsChanged) {
+      this.activeDetailSession.updated_at = nowIso;
+    } else {
+      this.activeDetailSession.updated_at = this.originalModalSessionSnapshot?.updated_at || this.originalModalSessionSnapshot?.created_at || nowIso;
+    }
 
     this.isSaving.set(true);
     await this.supabase.saveWeighingSession(this.activeDetailSession, this.activeDetailSession.items || []);
     await this.refreshData();
     this.isSaving.set(false);
     this.isEditingSession = false;
+    this.originalModalSessionSnapshot = JSON.parse(JSON.stringify(this.activeDetailSession));
     this.audio.playScaleSuccess();
   }
 

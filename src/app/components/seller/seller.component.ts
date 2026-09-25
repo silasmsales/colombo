@@ -562,6 +562,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
                 </div>
                 <div class="item-sub-row">
                   <span class="item-avg">Média: {{ item.avg_weight_kg | number:'1.1-1' }} kg/cab</span>
+                  <span *ngIf="item.created_at" class="item-time">🕒 {{ item.created_at | date:'HH:mm:ss' }}</span>
                   <span *ngIf="item.notes" class="item-notes">🏷️ {{ item.notes }}</span>
                 </div>
               </div>
@@ -2496,13 +2497,16 @@ export class SellerComponent implements OnInit {
 
     const qty = Math.max(1, this.currentAnimalCount || 1);
     const avg = weight / qty;
+    const nowIso = new Date().toISOString();
 
     const newItem: WeighingItem = {
       sequence_number: this.weighingItems().length + 1,
       animal_count: qty,
       weight_kg: weight,
       avg_weight_kg: Number(avg.toFixed(2)),
-      notes: this.currentItemNotes ? this.currentItemNotes.trim() : undefined
+      notes: this.currentItemNotes ? this.currentItemNotes.trim() : undefined,
+      created_at: nowIso,
+      updated_at: nowIso
     };
 
     this.audio.playScaleSuccess();
@@ -2536,6 +2540,7 @@ export class SellerComponent implements OnInit {
 
     this.isSaving.set(true);
     const currentStats = this.stats();
+    const nowIso = new Date().toISOString();
 
     const sessionId = this.activeSessionId() || this.supabase.generateUuid();
 
@@ -2552,10 +2557,18 @@ export class SellerComponent implements OnInit {
       total_weight_kg: currentStats.totalWeightKg,
       avg_weight_kg: currentStats.avgWeightKg,
       total_arrobas: currentStats.totalArrobas,
-      status: 'completed'
+      status: 'completed',
+      created_at: this.activeSessionId() ? undefined : nowIso,
+      updated_at: nowIso
     };
 
-    const result = await this.supabase.saveWeighingSession(session, this.weighingItems());
+    const itemsToSave = this.weighingItems().map(item => ({
+      ...item,
+      created_at: item.created_at || nowIso,
+      updated_at: item.updated_at || item.created_at || nowIso
+    }));
+
+    const result = await this.supabase.saveWeighingSession(session, itemsToSave);
     this.lastSaveSynced = result.synced;
     await this.loadPastSessions();
     this.isSaving.set(false);
