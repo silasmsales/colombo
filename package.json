@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "ng serve --host 0.0.0.0",
     "build": "ng build",
     "build:gh": "ng build --base-href /colombo/ && node -e \"require('fs').copyFileSync('dist/colombo-weighing/browser/index.html', 'dist/colombo-weighing/browser/404.html')\"",
     "deploy": "npm run build:gh && gh-pages -d dist/colombo-weighing/browser -b gh-pages",

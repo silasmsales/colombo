@@ -66,7 +66,7 @@ export class SupabaseService {
 
   public updatePendingCount(): number {
     const list = this.getLocalSessions();
-    const count = list.filter(s => s.sync_status !== 'synced').length;
+    const count = list.filter(s => s.status !== 'deleted' && s.sync_status === 'pending').length;
     this.pendingSyncCount.set(count);
     return count;
   }
@@ -175,7 +175,7 @@ export class SupabaseService {
 
       // 2. Busca sessões pendentes de envio
       const localSessions = this.getLocalSessions();
-      const pending = localSessions.filter(s => s.sync_status !== 'synced');
+      const pending = localSessions.filter(s => s.status !== 'deleted' && s.sync_status === 'pending');
 
       for (const session of pending) {
         if (!this.client) break;
@@ -355,7 +355,11 @@ export class SupabaseService {
             })).sort((a: WeighingItem, b: WeighingItem) => a.sequence_number - b.sequence_number)
           }));
           this.mergeRemoteWithLocalSessions(sessionsWithItems);
-          return sellerId ? sessionsWithItems.filter(s => s.seller_id === sellerId) : sessionsWithItems;
+          if (remoteOnly) {
+            return sellerId ? sessionsWithItems.filter(s => s.seller_id === sellerId) : sessionsWithItems;
+          }
+          const allMerged = this.getLocalSessions().filter(s => s.status !== 'deleted');
+          return sellerId ? allMerged.filter(s => s.seller_id === sellerId) : allMerged;
         } else if (error) {
           console.warn('Erro ao buscar sessões no Supabase:', error);
         }
@@ -507,7 +511,11 @@ export class SupabaseService {
   public getLocalSessions(): WeighingSession[] {
     try {
       const data = localStorage.getItem(STORAGE_KEY_SESSIONS);
-      return data ? JSON.parse(data) : [];
+      const list: WeighingSession[] = data ? JSON.parse(data) : [];
+      return list.map(s => ({
+        ...s,
+        sync_status: s.sync_status === 'pending' ? 'pending' : 'synced'
+      }));
     } catch {
       return [];
     }
@@ -522,17 +530,24 @@ export class SupabaseService {
       list.unshift(session);
     }
     localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(list));
+    this.updatePendingCount();
   }
 
   private mergeRemoteWithLocalSessions(remoteSessions: WeighingSession[]) {
     const local = this.getLocalSessions();
     const map = new Map<string, WeighingSession>();
 
-    remoteSessions.forEach(s => map.set(s.id, s));
+    // 1. As sessões do Supabase são a verdade para tudo o que está sincronizado
+    remoteSessions.forEach(s => {
+      map.set(s.id, { ...s, sync_status: 'synced' });
+    });
 
+    // 2. Mantém do cache local APENAS o que foi criado offline e ainda está pendente de envio
     local.forEach(s => {
-      if (!map.has(s.id)) {
-        map.set(s.id, s);
+      if (s.sync_status === 'pending' && s.status !== 'deleted') {
+        if (!map.has(s.id)) {
+          map.set(s.id, s);
+        }
       }
     });
 
@@ -540,6 +555,7 @@ export class SupabaseService {
       (a, b) => new Date(b.created_at || b.session_date).getTime() - new Date(a.created_at || a.session_date).getTime()
     );
     localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(combined));
+    this.updatePendingCount();
   }
 
   public generateUuid(): string {

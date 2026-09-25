@@ -80,7 +80,6 @@ body.sunlight-mode {
 
 html, body {
   min-height: 100%;
-  height: 100%;
   font-family: var(--font-main);
   background-color: var(--bg-page);
   color: var(--text-main);

@@ -13,13 +13,13 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   template: `
-    <div class="seller-wrapper animate-fade">
+    <div id="seller-top" class="seller-wrapper animate-fade">
       
       <!-- Banner de Edição Ativa (Quando estiver editando uma pesagem existente) -->
       <div class="editing-banner animate-fade" *ngIf="activeSessionId()">
         <div class="eb-info">
           <span class="eb-tag">MODO EDIÇÃO</span>
-          <span class="eb-text">Editando: <strong>{{ selectedSeller?.farm_name }}</strong> ({{ sessionDate }})</span>
+          <span class="eb-text">Editando: <strong>{{ selectedSeller?.farm_name }}</strong> ({{ sessionDate | date:'dd/MM/yyyy HH:mm' }})</span>
         </div>
       </div>
 
@@ -142,31 +142,32 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
             </div>
 
             <div class="shc-actions">
-              <button type="button" class="btn btn-primary btn-sm flex-1" (click)="editSession(ps)">
-                ✏️ Editar / Continuar
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" (click)="viewPastSession(ps)" title="Visualizar Balançadas">
+              <button type="button" class="btn-action view" (click)="viewPastSession(ps)" title="Visualizar Balançadas">
                 🔍 Ver
+              </button>
+              <button type="button" class="btn-action edit" (click)="editSession(ps)" title="Editar / Continuar Pesagem">
+                ✏️ Editar
               </button>
               <button 
                 *ngIf="ps.sync_status !== 'synced'" 
                 type="button" 
-                class="btn btn-warning btn-sm" 
+                class="btn-action send" 
                 (click)="syncSessionNow(ps)" 
                 title="Enviar esta pesagem para a nuvem agora"
               >
                 📤 Enviar
               </button>
-              <button type="button" class="btn btn-secondary btn-sm" (click)="exportPastSessionCsv(ps)" title="Baixar CSV">
+              <button type="button" class="btn-action csv" (click)="exportPastSessionCsv(ps)" title="Baixar Planilha CSV">
                 📥 CSV
               </button>
-              <button type="button" class="btn btn-whatsapp btn-sm" (click)="sharePastSessionWhatsApp(ps)" title="WhatsApp">
-                <svg class="whatsapp-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <button type="button" class="btn-action zap" (click)="sharePastSessionWhatsApp(ps)" title="Compartilhar no WhatsApp">
+                <svg class="whatsapp-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                   <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24zm4.52 11.53c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.41-1.75-.14-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.14.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43-.14-.01-.31-.01-.48-.01-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.13.17 1.77 2.7 4.29 3.79.6.26 1.07.41 1.44.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.07-.12-.23-.19-.48-.31z"/>
                 </svg>
+                Zap
               </button>
-              <button type="button" class="btn-del-icon" (click)="deletePastSession(ps.id)" title="Excluir Romaneio">
-                🗑️
+              <button type="button" class="btn-action del" (click)="deletePastSession(ps.id)" title="Excluir Romaneio">
+                🗑️ Excluir
               </button>
             </div>
           </div>
@@ -332,9 +333,9 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
             </div>
 
             <div class="form-group flex-1">
-              <label class="form-label">Data da Pesagem *</label>
+              <label class="form-label">Data e Hora da Pesagem *</label>
               <input 
-                type="date" 
+                type="datetime-local" 
                 class="form-control" 
                 [(ngModel)]="sessionDate" 
                 name="sessionDate" 
@@ -372,13 +373,13 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       <!-- ============================================================ -->
       <!-- ETAPA 2: BALANÇA DIGITAL - FLUXO REAL DO CURRAL -->
       <!-- ============================================================ -->
-      <div *ngIf="currentStep() === 2" class="step-content animate-fade">
+      <div *ngIf="currentStep() === 2" id="scale-step-anchor" class="step-content animate-fade">
         
         <!-- Header Rápido da Sessão Ativa -->
         <div class="session-quick-bar">
           <div class="sq-info">
             <span class="sq-farm">📍 {{ selectedSeller?.farm_name }}</span>
-            <span class="sq-meta">{{ sessionWeigher }} • {{ sessionDate }}</span>
+            <span class="sq-meta">{{ sessionWeigher }} • {{ sessionDate | date:'dd/MM/yyyy HH:mm' }}</span>
           </div>
           <button type="button" class="btn-sm-outline" (click)="goToStep(1)">Alterar</button>
         </div>
@@ -417,7 +418,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
                 [class.active]="isCustomQty"
                 (click)="enableCustomQty()"
               >
-                Outro...
+                Outro
               </button>
             </div>
 
@@ -458,7 +459,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
             <div class="weight-display-screen">
               <div class="visor-top-row">
                 <span class="visor-digits" [class.empty]="!weightDigits">
-                  {{ weightString || '0.0' }}
+                  {{ weightString || '0' }}
                 </span>
                 <span class="visor-unit">KG</span>
               </div>
@@ -629,8 +630,8 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
               <strong class="s-val">{{ sessionWeigher }}</strong>
             </div>
             <div class="summary-row">
-              <span class="s-label">Data:</span>
-              <strong class="s-val">{{ sessionDate }}</strong>
+              <span class="s-label">Data e Hora:</span>
+              <strong class="s-val">{{ sessionDate | date:'dd/MM/yyyy HH:mm' }}</strong>
             </div>
             <div class="summary-row" *ngIf="sessionObservations">
               <span class="s-label">Observações:</span>
@@ -1300,13 +1301,18 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
     .weight-display-screen {
       display: flex;
       flex-direction: column;
+      justify-content: space-between;
       background: #060e1a;
       border: 2px solid rgba(5, 150, 105, 0.5);
       border-radius: var(--radius-lg);
-      padding: 0.65rem 1.25rem 0.5rem 1.25rem;
+      padding: 0.65rem 1.25rem 0.45rem 1.25rem;
       margin-bottom: 0.75rem;
       box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
-      min-height: 96px;
+      height: 104px;
+      min-height: 104px;
+      max-height: 104px;
+      box-sizing: border-box;
+      overflow: hidden;
     }
 
     .visor-top-row {
@@ -1314,15 +1320,16 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       align-items: baseline;
       justify-content: space-between;
       width: 100%;
+      height: 48px;
     }
 
     .visor-digits {
       font-family: var(--font-mono);
-      font-size: 2.7rem;
+      font-size: 2.6rem;
       font-weight: 800;
       color: #34d399;
       letter-spacing: 0.04em;
-      line-height: 1.1;
+      line-height: 1;
     }
 
     .visor-digits.empty {
@@ -1331,7 +1338,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
 
     .visor-unit {
       font-family: var(--font-display);
-      font-size: 1.35rem;
+      font-size: 1.25rem;
       font-weight: 800;
       color: var(--text-muted);
     }
@@ -1341,15 +1348,20 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       align-items: center;
       justify-content: flex-end;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
-      padding-top: 0.35rem;
-      margin-top: 0.35rem;
+      padding-top: 0.25rem;
+      margin-top: 0.25rem;
       width: 100%;
+      height: 26px;
+      box-sizing: border-box;
+      white-space: nowrap;
+      overflow: hidden;
     }
 
     .visor-sub-item {
       display: flex;
       align-items: center;
       gap: 0.4rem;
+      white-space: nowrap;
     }
 
     .vsi-label {
@@ -1358,6 +1370,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
+      white-space: nowrap;
     }
 
     .vsi-val {
@@ -1365,6 +1378,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       font-size: 0.95rem;
       color: var(--text-main);
       font-weight: 700;
+      white-space: nowrap;
     }
 
     .visor-sub-item.highlight .vsi-val {
@@ -1374,6 +1388,24 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
 
     .visor-sub-item.highlight .vsi-val.empty {
       color: rgba(255, 255, 255, 0.25);
+    }
+
+    @media (max-width: 440px) {
+      .weight-display-screen {
+        height: 98px;
+        min-height: 98px;
+        max-height: 98px;
+        padding: 0.5rem 0.85rem;
+      }
+      .visor-digits {
+        font-size: 2.1rem;
+      }
+      .vsi-label {
+        font-size: 0.68rem;
+      }
+      .vsi-val {
+        font-size: 0.85rem;
+      }
     }
 
     /* TECLADO NUMÉRICO TOUCH */
@@ -2089,29 +2121,133 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
 
     .shc-actions {
       display: flex;
-      gap: 0.4rem;
+      gap: 0.45rem;
       align-items: center;
       flex-wrap: wrap;
+      margin-top: 0.4rem;
     }
 
-    .btn-sm {
-      padding: 0.4rem 0.65rem;
-      font-size: 0.8rem;
-    }
-
-    .btn-del-icon {
-      background: rgba(239, 68, 68, 0.12);
-      border: 1px solid rgba(239, 68, 68, 0.25);
-      color: #fca5a5;
-      padding: 0.4rem 0.6rem;
+    .btn-action {
+      border: 1px solid var(--border);
+      background: var(--bg-surface-elevated);
+      color: var(--text-main);
+      padding: 0.48rem 0.8rem;
       border-radius: var(--radius-sm);
-      cursor: pointer;
       font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      min-height: 38px;
     }
 
-    .btn-del-icon:hover {
-      background: var(--danger);
+    .btn-action .whatsapp-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .btn-action:hover {
+      background: var(--bg-surface);
+      border-color: var(--primary-light);
+      transform: translateY(-1px);
+    }
+
+    .btn-action.view {
+      color: #38bdf8;
+      border-color: rgba(56, 189, 248, 0.35);
+      background: rgba(56, 189, 248, 0.12);
+    }
+
+    .btn-action.view:hover {
+      background: #0284c7;
       color: #fff;
+    }
+
+    .btn-action.edit {
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.35);
+      background: rgba(245, 158, 11, 0.12);
+    }
+
+    .btn-action.edit:hover {
+      background: #f59e0b;
+      color: #000;
+      border-color: #f59e0b;
+    }
+
+    .btn-action.send {
+      color: #fb923c;
+      border-color: rgba(251, 146, 60, 0.35);
+      background: rgba(251, 146, 60, 0.12);
+    }
+
+    .btn-action.send:hover {
+      background: #ea580c;
+      color: #fff;
+      border-color: #ea580c;
+    }
+
+    .btn-action.csv {
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.35);
+      background: rgba(16, 185, 129, 0.12);
+    }
+
+    .btn-action.csv:hover {
+      background: #10b981;
+      color: #fff;
+    }
+
+    .btn-action.zap {
+      color: #22c55e;
+      border-color: rgba(34, 197, 94, 0.35);
+      background: rgba(34, 197, 94, 0.12);
+    }
+
+    .btn-action.zap:hover {
+      background: #16a34a;
+      color: #fff;
+    }
+
+    .btn-action.del {
+      color: #fca5a5;
+      border-color: rgba(239, 68, 68, 0.35);
+      background: rgba(239, 68, 68, 0.12);
+    }
+
+    .btn-action.del:hover {
+      background: #ef4444;
+      color: #fff;
+      border-color: #ef4444;
+    }
+
+    @media (max-width: 640px) {
+      .shc-actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        width: 100%;
+        margin-top: 0.6rem;
+      }
+
+      .btn-action {
+        padding: 0.65rem 0.4rem;
+        font-size: 0.88rem;
+        min-height: 44px;
+        width: 100%;
+        border-radius: 8px;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .shc-actions {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
 
     /* Modal XL */
@@ -2246,13 +2382,39 @@ export class SellerComponent implements OnInit {
     phone: ''
   };
 
+  getNowLocalDateTime(): string {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  }
+
+  formatToLocalDateTime(dateStr?: string): string {
+    if (!dateStr) return this.getNowLocalDateTime();
+    if (dateStr.includes('T') && dateStr.length >= 16) {
+      return dateStr.substring(0, 16);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${dateStr}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return this.getNowLocalDateTime();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch {
+      return this.getNowLocalDateTime();
+    }
+  }
+
   // Header da Pesagem (Sem pedir quantidade prévia de cabeças)
   sessionWeigher = '';
-  sessionDate = new Date().toISOString().split('T')[0];
+  sessionDate = this.getNowLocalDateTime();
   sessionObservations = '';
 
   // Balança State
-  quickQuantities = [1, 2, 3, 5, 10];
+  quickQuantities = [1, 2];
   currentAnimalCount = 1; // Padrão: 1 animal na balança
   isCustomQty = false;
 
@@ -2262,17 +2424,14 @@ export class SellerComponent implements OnInit {
   weighingItems = signal<WeighingItem[]>([]);
   reversedWeighingItems = computed(() => [...this.weighingItems()].reverse());
 
-  // Formatação automática do peso com ponto decimal (ex: 5205 -> 520.5)
+  // Digitação direta do peso em KG inteiros (ex: 520 -> 520 kg)
   get weightString(): string {
-    if (!this.weightDigits) return '';
-    if (this.weightDigits.length === 1) return `0.${this.weightDigits}`;
-    const val = parseInt(this.weightDigits, 10) / 10;
-    return val.toFixed(1);
+    return this.weightDigits;
   }
 
   // Retorna o peso numérico digitado
   get numericWeight(): number {
-    const val = parseFloat(this.weightString);
+    const val = parseInt(this.weightDigits, 10);
     return isNaN(val) ? 0 : val;
   }
 
@@ -2293,12 +2452,34 @@ export class SellerComponent implements OnInit {
     };
   });
 
-  async ngOnInit() {
-    await Promise.all([this.loadSellers(), this.loadPastSessions()]);
-    if (this.sellers().length > 0) {
-      this.selectedSeller = this.sellers()[0];
-      this.sessionWeigher = this.selectedSeller.responsible_name;
+  scrollToTop() {
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+
+      // Executa após a atualização e renderização do DOM do Angular
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+        const anchor = document.getElementById('scale-step-anchor') || document.getElementById('seller-top');
+        if (anchor) {
+          anchor.scrollIntoView({ block: 'start', behavior: 'instant' as ScrollBehavior });
+        }
+      });
+
+      setTimeout(() => {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+      }, 50);
     }
+  }
+
+  async ngOnInit() {
+    this.scrollToTop();
+    await Promise.all([this.loadSellers(), this.loadPastSessions()]);
   }
 
   async loadSellers() {
@@ -2351,8 +2532,8 @@ export class SellerComponent implements OnInit {
     await this.supabase.deleteSeller(sellerId);
     await this.loadSellers();
     if (this.selectedSeller?.id === sellerId) {
-      this.selectedSeller = this.sellers().length > 0 ? this.sellers()[0] : null;
-      this.sessionWeigher = this.selectedSeller ? this.selectedSeller.responsible_name : '';
+      this.selectedSeller = null;
+      this.sessionWeigher = '';
     }
   }
 
@@ -2376,11 +2557,13 @@ export class SellerComponent implements OnInit {
   proceedToWeighing() {
     this.audio.playClick();
     this.currentStep.set(2);
+    this.scrollToTop();
   }
 
   goToStep(step: number) {
     this.audio.playClick();
     this.currentStep.set(step);
+    this.scrollToTop();
   }
 
   // ==========================================
@@ -2406,7 +2589,7 @@ export class SellerComponent implements OnInit {
     }
 
     this.sessionWeigher = session.responsible_name;
-    this.sessionDate = session.session_date;
+    this.sessionDate = this.formatToLocalDateTime(session.session_date);
     this.sessionObservations = session.observations || '';
 
     // Carrega os itens da pesagem para edição no curral
@@ -2418,6 +2601,7 @@ export class SellerComponent implements OnInit {
 
     this.closeViewingSession();
     this.currentStep.set(2);
+    this.scrollToTop();
   }
 
   cancelEditing() {
@@ -2429,6 +2613,7 @@ export class SellerComponent implements OnInit {
     this.weightDigits = '';
     this.currentStep.set(1);
     this.activeTab.set('new');
+    this.scrollToTop();
   }
 
   viewPastSession(session: WeighingSession) {
@@ -2675,6 +2860,7 @@ export class SellerComponent implements OnInit {
     this.weightDigits = '';
     this.currentStep.set(1);
     this.activeTab.set('history');
+    this.scrollToTop();
   }
 
   startNewSession() {
@@ -2685,6 +2871,7 @@ export class SellerComponent implements OnInit {
     this.sessionObservations = '';
     this.weightDigits = '';
     this.currentStep.set(2);
+    this.scrollToTop();
   }
 }
 

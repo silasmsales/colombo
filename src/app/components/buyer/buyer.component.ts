@@ -314,9 +314,9 @@ import { WeighingSession, WeighingItem } from '../../models/weighing.model';
           <!-- Barra de Edição de Cabeçalho (Apenas quando em Modo Edição) -->
           <div *ngIf="isEditingSession" class="modal-edit-compact-bar">
             <div class="mec-field date">
-              <label>Data da Pesagem</label>
+              <label>Data e Hora da Pesagem</label>
               <input 
-                type="date" 
+                type="datetime-local" 
                 class="form-control-compact" 
                 [(ngModel)]="activeDetailSession.session_date" 
               />
@@ -1341,11 +1341,33 @@ export class BuyerComponent implements OnInit {
     this.selectedDateFilter.set('');
   }
 
+  formatToLocalDateTime(dateStr?: string): string {
+    if (!dateStr) return '';
+    if (dateStr.includes('T') && dateStr.length >= 16) {
+      return dateStr.substring(0, 16);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return `${dateStr}T12:00`;
+    }
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch {
+      return '';
+    }
+  }
+
   openDetailModal(session: WeighingSession, isEdit = false) {
     this.audio.playClick();
     // Clona para permitir edição isolada e manter snapshot de comparação
-    this.originalModalSessionSnapshot = JSON.parse(JSON.stringify(session));
-    this.activeDetailSession = JSON.parse(JSON.stringify(session));
+    const cloned: WeighingSession = JSON.parse(JSON.stringify(session));
+    if (cloned.session_date) {
+      cloned.session_date = this.formatToLocalDateTime(cloned.session_date);
+    }
+    this.originalModalSessionSnapshot = JSON.parse(JSON.stringify(cloned));
+    this.activeDetailSession = cloned;
     this.isEditingSession = isEdit;
   }
 
