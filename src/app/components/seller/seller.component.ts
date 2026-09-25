@@ -103,7 +103,10 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
             <div class="shc-header">
               <div>
                 <div class="shc-farm">{{ ps.farm_name }}</div>
-                <div class="shc-meta">📅 {{ ps.session_date }} • 👤 {{ ps.responsible_name }} • 📍 {{ ps.location }}</div>
+                <div class="shc-meta">📅 {{ ps.created_at ? (ps.created_at | date:'dd/MM/yyyy HH:mm') : ps.session_date }} • 👤 {{ ps.responsible_name }} • 📍 {{ ps.location }}</div>
+                <div class="shc-updated" *ngIf="ps.updated_at && ps.updated_at !== ps.created_at" style="font-size: 0.8rem; color: var(--color-accent); font-weight: 600; margin-top: 3px;">
+                  ✏️ Atualizado: {{ ps.updated_at | date:'dd/MM/yyyy HH:mm' }}
+                </div>
               </div>
               <div class="shc-badges">
                 <!-- Status de Sincronização / Envio -->
@@ -757,8 +760,11 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
               <h2 class="modal-title mt-1">{{ activeViewingSession.farm_name }}</h2>
               <p class="modal-sub">
                 Produtor: <strong>{{ activeViewingSession.seller_name }}</strong> • 
-                Data: <strong>{{ activeViewingSession.session_date }}</strong> • 
+                Data: <strong>{{ activeViewingSession.created_at ? (activeViewingSession.created_at | date:'dd/MM/yyyy HH:mm') : activeViewingSession.session_date }}</strong> • 
                 Pesador: <strong>{{ activeViewingSession.responsible_name }}</strong>
+                <span *ngIf="activeViewingSession.updated_at && activeViewingSession.updated_at !== activeViewingSession.created_at" style="color: var(--color-accent); font-weight: 600; margin-left: 6px;">
+                  • ✏️ Atualizado: <strong>{{ activeViewingSession.updated_at | date:'dd/MM/yyyy HH:mm' }}</strong>
+                </span>
               </p>
             </div>
             <button type="button" class="btn-close" (click)="closeViewingSession()">✕</button>
@@ -794,6 +800,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
                   <th class="text-right">Peso (kg)</th>
                   <th class="text-right">Média (kg)</th>
                   <th>Anotação</th>
+                  <th>Horários</th>
                 </tr>
               </thead>
               <tbody>
@@ -803,9 +810,17 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
                   <td class="text-right td-mono font-bold">{{ item.weight_kg | number:'1.2-2' }} kg</td>
                   <td class="text-right td-mono text-accent">{{ item.avg_weight_kg | number:'1.2-2' }} kg</td>
                   <td class="td-notes">{{ item.notes || '-' }}</td>
+                  <td class="td-timestamp" style="font-size: 0.75rem; white-space: nowrap;">
+                    <div class="ts-created">
+                      🕒 {{ item.created_at ? (item.created_at | date:'dd/MM/yyyy HH:mm:ss') : '-' }}
+                    </div>
+                    <div class="ts-updated" *ngIf="item.updated_at && item.updated_at !== item.created_at" style="color: var(--color-accent); font-weight: 600;">
+                      ✏️ {{ item.updated_at | date:'dd/MM/yyyy HH:mm:ss' }}
+                    </div>
+                  </td>
                 </tr>
                 <tr *ngIf="!activeViewingSession.items || activeViewingSession.items.length === 0">
-                  <td colspan="5" class="text-center py-3 text-muted">Nenhum detalhe de balançada registrado.</td>
+                  <td colspan="6" class="text-center py-3 text-muted">Nenhum detalhe de balançada registrado.</td>
                 </tr>
               </tbody>
             </table>
@@ -2216,6 +2231,7 @@ export class SellerComponent implements OnInit {
   // Abas de Modo no Vendedor (Nova Pesagem vs Pesagens Anteriores)
   activeTab = signal<'new' | 'history'>('new');
   activeSessionId = signal<string | null>(null);
+  editingSessionOriginal: WeighingSession | null = null;
   pastSessions = signal<WeighingSession[]>([]);
   activeViewingSession: WeighingSession | null = null;
 
@@ -2372,6 +2388,7 @@ export class SellerComponent implements OnInit {
   // ==========================================
   editSession(session: WeighingSession) {
     this.audio.playClick();
+    this.editingSessionOriginal = JSON.parse(JSON.stringify(session));
     this.activeSessionId.set(session.id);
     
     // Tenta encontrar o vendedor correspondente
@@ -2405,6 +2422,7 @@ export class SellerComponent implements OnInit {
 
   cancelEditing() {
     this.audio.playClick();
+    this.editingSessionOriginal = null;
     this.activeSessionId.set(null);
     this.weighingItems.set([]);
     this.sessionObservations = '';
@@ -2542,7 +2560,49 @@ export class SellerComponent implements OnInit {
     const currentStats = this.stats();
     const nowIso = new Date().toISOString();
 
+    const isEditing = !!this.activeSessionId();
     const sessionId = this.activeSessionId() || this.supabase.generateUuid();
+
+    const originalItems = this.editingSessionOriginal?.items || [];
+    let anyItemChanged = false;
+
+    const itemsToSave = this.weighingItems().map(item => {
+      const originalItem = originalItems.find(
+        orig => (item.id && orig.id === item.id) || (orig.sequence_number === item.sequence_number)
+      );
+
+      const isNewItem = !originalItem;
+      const isModified = !isNewItem && (
+        Number(originalItem.animal_count) !== Number(item.animal_count) ||
+        Number(originalItem.weight_kg) !== Number(item.weight_kg) ||
+        (originalItem.notes || '').trim() !== (item.notes || '').trim()
+      );
+
+      if (isNewItem || isModified) {
+        anyItemChanged = true;
+      }
+
+      return {
+        ...item,
+        created_at: item.created_at || originalItem?.created_at || nowIso,
+        updated_at: (isNewItem || isModified)
+          ? nowIso
+          : (originalItem?.updated_at || originalItem?.created_at || item.updated_at || item.created_at || nowIso)
+      };
+    });
+
+    const itemsCountChanged = isEditing && (this.weighingItems().length !== originalItems.length);
+    const sessionFieldsChanged = isEditing && (
+      this.sessionWeigher !== this.editingSessionOriginal?.responsible_name ||
+      this.sessionDate !== this.editingSessionOriginal?.session_date ||
+      this.sessionObservations !== (this.editingSessionOriginal?.observations || '')
+    );
+
+    const sessionCreatedAt = this.editingSessionOriginal?.created_at || (isEditing ? undefined : nowIso) || nowIso;
+    let sessionUpdatedAt = nowIso;
+    if (isEditing && !anyItemChanged && !itemsCountChanged && !sessionFieldsChanged) {
+      sessionUpdatedAt = this.editingSessionOriginal?.updated_at || this.editingSessionOriginal?.created_at || nowIso;
+    }
 
     const session: WeighingSession = {
       id: sessionId,
@@ -2558,15 +2618,9 @@ export class SellerComponent implements OnInit {
       avg_weight_kg: currentStats.avgWeightKg,
       total_arrobas: currentStats.totalArrobas,
       status: 'completed',
-      created_at: this.activeSessionId() ? undefined : nowIso,
-      updated_at: nowIso
+      created_at: sessionCreatedAt,
+      updated_at: sessionUpdatedAt
     };
-
-    const itemsToSave = this.weighingItems().map(item => ({
-      ...item,
-      created_at: item.created_at || nowIso,
-      updated_at: item.updated_at || item.created_at || nowIso
-    }));
 
     const result = await this.supabase.saveWeighingSession(session, itemsToSave);
     this.lastSaveSynced = result.synced;
@@ -2615,6 +2669,7 @@ export class SellerComponent implements OnInit {
     this.audio.playClick();
     this.showSuccessModal = false;
     this.activeSessionId.set(null);
+    this.editingSessionOriginal = null;
     this.weighingItems.set([]);
     this.sessionObservations = '';
     this.weightDigits = '';
@@ -2625,6 +2680,7 @@ export class SellerComponent implements OnInit {
   startNewSession() {
     this.showSuccessModal = false;
     this.activeSessionId.set(null);
+    this.editingSessionOriginal = null;
     this.weighingItems.set([]);
     this.sessionObservations = '';
     this.weightDigits = '';
