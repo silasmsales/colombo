@@ -1,0 +1,79 @@
+{
+  "configVersion": 1,
+  "timestamp": 1790370682591,
+  "index": "/colombo/index.html",
+  "assetGroups": [
+    {
+      "name": "app",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "cacheQueryOptions": {
+        "ignoreVary": true
+      },
+      "urls": [
+        "/colombo/favicon.ico",
+        "/colombo/index.html",
+        "/colombo/main-GTQ6GMOH.js",
+        "/colombo/manifest.webmanifest",
+        "/colombo/styles-EIMVRRQP.css"
+      ],
+      "patterns": []
+    },
+    {
+      "name": "assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "cacheQueryOptions": {
+        "ignoreVary": true
+      },
+      "urls": [
+        "/colombo/colombo_logo.png",
+        "/colombo/icons/icon-128x128.png",
+        "/colombo/icons/icon-144x144.png",
+        "/colombo/icons/icon-152x152.png",
+        "/colombo/icons/icon-192x192.png",
+        "/colombo/icons/icon-384x384.png",
+        "/colombo/icons/icon-512x512.png",
+        "/colombo/icons/icon-72x72.png",
+        "/colombo/icons/icon-96x96.png"
+      ],
+      "patterns": []
+    }
+  ],
+  "dataGroups": [],
+  "hashTable": {
+    "/colombo/colombo_logo.png": "2beeb73c6107513a3aa2dd77c19283ab60c4002f",
+    "/colombo/favicon.ico": "9c39f434fe1261f68c5e3eefdf734630d99c5670",
+    "/colombo/icons/icon-128x128.png": "f912963bdc6d5a38d8f1dd0afbaab2ce8d657acb",
+    "/colombo/icons/icon-144x144.png": "b155fd5f2fd5d2ea7760721063003c4cd95fd783",
+    "/colombo/icons/icon-152x152.png": "eae6e0f0c8afb8aaae339e2a569b43e9238e5e6c",
+    "/colombo/icons/icon-192x192.png": "15c4180454633880d98674aa7394656196c91584",
+    "/colombo/icons/icon-384x384.png": "94a915751ef6c9282df9aea405ad679230631814",
+    "/colombo/icons/icon-512x512.png": "1de182f76f7329dfa8f9fcdd1fdcdd695bea6a99",
+    "/colombo/icons/icon-72x72.png": "aa88a6096bd973be7f6d7a5489bfa6bc2463f8c4",
+    "/colombo/icons/icon-96x96.png": "7fb8f59c30ce2ff12c700321a0b39e14b3dc8f95",
+    "/colombo/index.html": "beb379ad8250e6104586ec4c487d439f145097e8",
+    "/colombo/main-GTQ6GMOH.js": "9bb2943a7c2029edfdbbbed9dfab498db9647141",
+    "/colombo/manifest.webmanifest": "5dab4256b9e9b9770a78a2bac1133f6c964313d7",
+    "/colombo/styles-EIMVRRQP.css": "0e691121c690b8984c6498602f2692586fedb7f8"
+  },
+  "navigationUrls": [
+    {
+      "positive": true,
+      "regex": "^\\/.*$"
+    },
+    {
+      "positive": false,
+      "regex": "^\\/(?:.+\\/)?[^/]*\\.[^/]*$"
+    },
+    {
+      "positive": false,
+      "regex": "^\\/(?:.+\\/)?[^/]*__[^/]*$"
+    },
+    {
+      "positive": false,
+      "regex": "^\\/(?:.+\\/)?[^/]*__[^/]*\\/.*$"
+    }
+  ],
+  "navigationRequestStrategy": "performance"
+}
