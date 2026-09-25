@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1790373777653,
+  "timestamp": 1790373897968,
   "index": "/colombo/index.html",
   "assetGroups": [
     {
@@ -15,7 +15,7 @@
         "/colombo/index.html",
         "/colombo/main-NM6KFPZM.js",
         "/colombo/manifest.webmanifest",
-        "/colombo/styles-BLZWB6XF.css"
+        "/colombo/styles-VAGBSKA6.css"
       ],
       "patterns": []
     },
@@ -27,6 +27,7 @@
         "ignoreVary": true
       },
       "urls": [
+        "/colombo/apple-touch-icon.png",
         "/colombo/colombo_logo.png",
         "/colombo/icons/icon-128x128.png",
         "/colombo/icons/icon-144x144.png",
@@ -42,20 +43,21 @@
   ],
   "dataGroups": [],
   "hashTable": {
+    "/colombo/apple-touch-icon.png": "5642e0ace44828ffef28176f6a53307b23e97d11",
     "/colombo/colombo_logo.png": "2beeb73c6107513a3aa2dd77c19283ab60c4002f",
-    "/colombo/favicon.ico": "9c39f434fe1261f68c5e3eefdf734630d99c5670",
-    "/colombo/icons/icon-128x128.png": "f912963bdc6d5a38d8f1dd0afbaab2ce8d657acb",
-    "/colombo/icons/icon-144x144.png": "b155fd5f2fd5d2ea7760721063003c4cd95fd783",
-    "/colombo/icons/icon-152x152.png": "eae6e0f0c8afb8aaae339e2a569b43e9238e5e6c",
-    "/colombo/icons/icon-192x192.png": "15c4180454633880d98674aa7394656196c91584",
-    "/colombo/icons/icon-384x384.png": "94a915751ef6c9282df9aea405ad679230631814",
-    "/colombo/icons/icon-512x512.png": "1de182f76f7329dfa8f9fcdd1fdcdd695bea6a99",
-    "/colombo/icons/icon-72x72.png": "aa88a6096bd973be7f6d7a5489bfa6bc2463f8c4",
-    "/colombo/icons/icon-96x96.png": "7fb8f59c30ce2ff12c700321a0b39e14b3dc8f95",
-    "/colombo/index.html": "3f7b2b951890f0f6931493187f40c28fd5c55131",
+    "/colombo/favicon.ico": "72cc3f44a287d2366c0540e283b0801e33ce7f38",
+    "/colombo/icons/icon-128x128.png": "e1cf71cb92b270f25eb80e6b8dcd34edbce439bd",
+    "/colombo/icons/icon-144x144.png": "3675b94616404265088cc27abfd8e14abec242d8",
+    "/colombo/icons/icon-152x152.png": "a546c8c13fe7e7afaeffb7962ee8991e27d70633",
+    "/colombo/icons/icon-192x192.png": "719b30333a3f4aeb2a8808f0bb7937f3fc483ef0",
+    "/colombo/icons/icon-384x384.png": "928862640b8e256c5cf75b6aa994401f3f16e57a",
+    "/colombo/icons/icon-512x512.png": "0756bc0830db27622df19fd343dfabc054e274c6",
+    "/colombo/icons/icon-72x72.png": "5237365a78e0e27ae69ca87b5418229fce0a54e2",
+    "/colombo/icons/icon-96x96.png": "d2174903004f5177c95e3ba67d22544fdf75fdbe",
+    "/colombo/index.html": "046d32a33d78c7edbae91950a456d90d7489dfb8",
     "/colombo/main-NM6KFPZM.js": "23f76dfdeaafcae26b667195877c0960d15b4a79",
     "/colombo/manifest.webmanifest": "5dab4256b9e9b9770a78a2bac1133f6c964313d7",
-    "/colombo/styles-BLZWB6XF.css": "6ae1f958d69392a8a03eca435fcadc637bf24799"
+    "/colombo/styles-VAGBSKA6.css": "ccf7cd99eab60f84fa8ad7607d7451c744e71857"
   },
   "navigationUrls": [
     {
