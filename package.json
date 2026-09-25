@@ -1,0 +1,36 @@
+{
+  "name": "colombo-weighing",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "build:gh": "ng build --base-href /colombo/ && node -e \"require('fs').copyFileSync('dist/colombo-weighing/browser/index.html', 'dist/colombo-weighing/browser/404.html')\"",
+    "deploy": "npm run build:gh && gh-pages -d dist/colombo-weighing/browser -b gh-pages",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test"
+  },
+  "private": true,
+  "packageManager": "npm@11.17.0",
+  "dependencies": {
+    "@angular/common": "^22.2.0",
+    "@angular/compiler": "^22.2.0",
+    "@angular/core": "^22.2.0",
+    "@angular/forms": "^22.2.0",
+    "@angular/platform-browser": "^22.2.0",
+    "@angular/router": "^22.2.0",
+    "@supabase/supabase-js": "^2.117.2",
+    "@types/canvas-confetti": "^1.9.0",
+    "canvas-confetti": "^1.9.4",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.2.0",
+    "@angular/cli": "^22.2.0",
+    "@angular/compiler-cli": "^22.2.0",
+    "gh-pages": "^6.3.0",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2"
+  }
+}
