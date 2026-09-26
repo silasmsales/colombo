@@ -1245,8 +1245,8 @@ export class BuyerComponent implements OnInit {
 
   isLoading = signal<boolean>(false);
   isSaving = signal<boolean>(false);
-  sellers = signal<Seller[]>([]);
-  sessions = signal<WeighingSession[]>([]);
+  sellers = signal<Seller[]>(this.supabase.getLocalSellers());
+  sessions = signal<WeighingSession[]>(this.supabase.getLocalSessions().filter(s => s.status !== 'deleted' && s.sync_status === 'synced'));
 
   // Filtros Reativos como Signals para que o computed recalcule a cada caractere digitado
   selectedSellerFilter = signal<string>('');
@@ -1319,19 +1319,31 @@ export class BuyerComponent implements OnInit {
     };
   });
 
-  async ngOnInit() {
-    await this.refreshData();
+  ngOnInit() {
+    // 1. Exibição instantânea do cache local
+    this.sellers.set(this.supabase.getLocalSellers());
+    this.sessions.set(this.supabase.getLocalSessions().filter(s => s.status !== 'deleted' && s.sync_status === 'synced'));
+    
+    // 2. Busca atualizações remotas em segundo plano
+    this.refreshData();
   }
 
   async refreshData() {
     this.isLoading.set(true);
-    const [sellersData, sessionsData] = await Promise.all([
-      this.supabase.getSellers(true),
-      this.supabase.getWeighingSessions(undefined, true)
-    ]);
-    this.sellers.set(sellersData);
-    this.sessions.set(sessionsData);
-    this.isLoading.set(false);
+    try {
+      const [sellersData, sessionsData] = await Promise.all([
+        this.supabase.getSellers(true),
+        this.supabase.getWeighingSessions(undefined, true)
+      ]);
+      if (sellersData && sellersData.length > 0) {
+        this.sellers.set(sellersData);
+      }
+      if (sessionsData && sessionsData.length > 0) {
+        this.sessions.set(sessionsData);
+      }
+    } finally {
+      this.isLoading.set(false);
+    }
   }
 
   clearFilters() {

@@ -2368,11 +2368,11 @@ export class SellerComponent implements OnInit {
   activeTab = signal<'new' | 'history'>('new');
   activeSessionId = signal<string | null>(null);
   editingSessionOriginal: WeighingSession | null = null;
-  pastSessions = signal<WeighingSession[]>([]);
+  pastSessions = signal<WeighingSession[]>(this.supabase.getLocalSessions().filter(s => s.status !== 'deleted'));
   activeViewingSession: WeighingSession | null = null;
 
   // Sellers
-  sellers = signal<Seller[]>([]);
+  sellers = signal<Seller[]>(this.supabase.getLocalSellers());
   selectedSeller: Seller | null = null;
   showNewSellerForm = false;
   newSeller: Partial<Seller> = {
@@ -2477,19 +2477,29 @@ export class SellerComponent implements OnInit {
     }
   }
 
-  async ngOnInit() {
+  ngOnInit() {
     this.scrollToTop();
-    await Promise.all([this.loadSellers(), this.loadPastSessions()]);
+    // 1. Carregamento instantâneo do cache local (0ms de atraso, nunca pisca/some)
+    this.sellers.set(this.supabase.getLocalSellers());
+    this.pastSessions.set(this.supabase.getLocalSessions().filter(s => s.status !== 'deleted'));
+
+    // 2. Revalidação em segundo plano sem bloquear a interface
+    this.loadSellers();
+    this.loadPastSessions();
   }
 
   async loadSellers() {
     const data = await this.supabase.getSellers();
-    this.sellers.set(data);
+    if (data && data.length > 0) {
+      this.sellers.set(data);
+    }
   }
 
   async loadPastSessions() {
     const data = await this.supabase.getWeighingSessions();
-    this.pastSessions.set(data);
+    if (data && data.length > 0) {
+      this.pastSessions.set(data);
+    }
   }
 
   async syncNow() {

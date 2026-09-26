@@ -124,12 +124,19 @@ export class SupabaseService {
     }
   }
 
+  private async withTimeout<T>(promise: PromiseLike<T>, timeoutMs = 2500): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Network timeout')), timeoutMs))
+    ]);
+  }
+
   public async testConnection(): Promise<{ success: boolean; message: string }> {
     if (!this.client) {
       return { success: false, message: 'Cliente não inicializado.' };
     }
     try {
-      const { error } = await this.client.from('sellers').select('id').limit(1);
+      const { error } = await this.withTimeout(this.client.from('sellers').select('id').limit(1), 2000);
       if (error) {
         this.isConnected.set(false);
         const msg = `Verifique permissões: ${error.message}`;
@@ -241,12 +248,15 @@ export class SupabaseService {
   // ==========================================
 
   public async getSellers(remoteOnly = false): Promise<Seller[]> {
-    if (this.client) {
+    if (this.client && (typeof navigator === 'undefined' || navigator.onLine)) {
       try {
-        const { data, error } = await this.client
-          .from('sellers')
-          .select('*')
-          .order('farm_name', { ascending: true });
+        const { data, error } = await this.withTimeout(
+          this.client
+            .from('sellers')
+            .select('*')
+            .order('farm_name', { ascending: true }),
+          2500
+        );
 
         if (!error && data) {
           this.isConnected.set(true);
@@ -256,13 +266,8 @@ export class SupabaseService {
           console.warn('Erro ao buscar vendedores no Supabase:', error);
         }
       } catch (err) {
-        console.warn('Erro de rede ao buscar vendedores no Supabase:', err);
+        console.warn('Erro / timeout ao buscar vendedores no Supabase:', err);
       }
-    }
-
-    // Se for visão administrativa (remoteOnly) e estiver offline
-    if (remoteOnly) {
-      return this.getLocalSellers();
     }
 
     return this.getLocalSellers();
@@ -291,13 +296,16 @@ export class SupabaseService {
     this.saveLocalSellers(local);
 
     // Enviar ao Supabase se configurado
-    if (this.client) {
+    if (this.client && (typeof navigator === 'undefined' || navigator.onLine)) {
       try {
-        const { data, error } = await this.client
-          .from('sellers')
-          .upsert(finalSeller)
-          .select()
-          .single();
+        const { data, error } = await this.withTimeout(
+          this.client
+            .from('sellers')
+            .upsert(finalSeller)
+            .select()
+            .single(),
+          3000
+        );
 
         if (!error && data) {
           this.isConnected.set(true);
@@ -315,9 +323,9 @@ export class SupabaseService {
     const local = this.getLocalSellers().filter(s => s.id !== sellerId);
     this.saveLocalSellers(local);
 
-    if (this.client) {
+    if (this.client && (typeof navigator === 'undefined' || navigator.onLine)) {
       try {
-        await this.client.from('sellers').delete().eq('id', sellerId);
+        await this.withTimeout(this.client.from('sellers').delete().eq('id', sellerId), 3000);
       } catch (err) {
         console.warn('Erro ao excluir vendedor no Supabase:', err);
       }
@@ -330,7 +338,7 @@ export class SupabaseService {
   // ==========================================
 
   public async getWeighingSessions(sellerId?: string, remoteOnly = false): Promise<WeighingSession[]> {
-    if (this.client) {
+    if (this.client && (typeof navigator === 'undefined' || navigator.onLine)) {
       try {
         let query = this.client
           .from('weighing_sessions')
@@ -342,7 +350,7 @@ export class SupabaseService {
           query = query.eq('seller_id', sellerId);
         }
 
-        const { data, error } = await query;
+        const { data, error } = await this.withTimeout(query, 3000);
         if (!error && data) {
           this.isConnected.set(true);
           const sessionsWithItems = data.map(item => ({
@@ -364,11 +372,11 @@ export class SupabaseService {
           console.warn('Erro ao buscar sessões no Supabase:', error);
         }
       } catch (err) {
-        console.warn('Erro ao buscar sessões no Supabase:', err);
+        console.warn('Erro / timeout ao buscar sessões no Supabase:', err);
       }
     }
 
-    // Fallback: se estiver offline / cliente não conectado
+    // Fallback: se estiver offline / cliente não conectado / timeout
     let localSessions = this.getLocalSessions().filter(s => s.status !== 'deleted');
     if (remoteOnly) {
       // Para o comprador em modo offline: exibe as sessões que foram marcadas como sincronizadas
