@@ -15,168 +15,183 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
   template: `
     <div id="seller-top" class="seller-wrapper animate-fade">
       
-      <!-- Banner de Edição Ativa (Quando estiver editando uma pesagem existente) -->
-      <div class="editing-banner animate-fade" *ngIf="activeSessionId()">
-        <div class="eb-info">
-          <span class="eb-tag">MODO EDIÇÃO</span>
-          <span class="eb-text">Editando: <strong>{{ selectedSeller?.farm_name }}</strong> ({{ sessionDate | date:'dd/MM/yyyy HH:mm' }})</span>
-        </div>
+      <!-- Abas de Navegação no Topo: Nova Pesagem vs Pesagens Anteriores -->
+      <div class="seller-mode-tabs">
+        <button 
+          type="button" 
+          class="seller-tab-btn" 
+          [class.active]="activeTab() === 'new'" 
+          (click)="onNewPesagemTabClick()"
+        >
+          ➕ Nova Pesagem
+        </button>
+        <button 
+          type="button" 
+          class="seller-tab-btn" 
+          [class.active]="activeTab() === 'history'" 
+          [disabled]="isWeighingInProgress()"
+          [title]="isWeighingInProgress() ? 'Conclua ou cancele a pesagem atual para acessar o histórico' : 'Ver pesagens anteriores'"
+          (click)="switchTab('history')"
+        >
+          📂 Pesagens Anteriores ({{ pastSessions().length }})
+        </button>
       </div>
 
-      <!-- Stepper / Progresso Visual -->
-      <div class="stepper">
-        <div class="step-pill" [class.active]="currentStep() === 1" [class.completed]="currentStep() > 1" (click)="goToStep(1)">
-          <span class="step-num">1</span>
-          <span class="step-label">Fazenda & Lote</span>
+      <!-- Banner de Sincronização Pendente -->
+      <div class="pending-sync-banner animate-fade" *ngIf="supabase.pendingSyncCount() > 0">
+        <div class="psb-info">
+          <span class="psb-icon">⏳</span>
+          <div class="psb-text">
+            <strong class="psb-title">{{ supabase.pendingSyncCount() }} pesagem(ns) salva(s) no aparelho</strong>
+            <span class="psb-sub">Aguardando envio para o banco de dados da Colombo Agro.</span>
+          </div>
         </div>
-        <div class="step-line" [class.completed]="currentStep() > 1"></div>
-        <div class="step-pill" [class.active]="currentStep() === 2" [class.completed]="currentStep() > 2" (click)="goToStep(2)">
-          <span class="step-num">2</span>
-          <span class="step-label">Balança & Pesagem</span>
-        </div>
-        <div class="step-line" [class.completed]="currentStep() > 2"></div>
-        <div class="step-pill" [class.active]="currentStep() === 3" [class.completed]="currentStep() > 3" (click)="goToStep(3)">
-          <span class="step-num">3</span>
-          <span class="step-label">Resumo & Envio</span>
-        </div>
+        <button 
+          type="button" 
+          class="btn-psb-sync" 
+          (click)="syncNow()" 
+          [disabled]="supabase.isSyncing()"
+        >
+          <span *ngIf="!supabase.isSyncing()">📤 Enviar Agora</span>
+          <span *ngIf="supabase.isSyncing()">Sincronizando...</span>
+        </button>
       </div>
 
-      <!-- ============================================================ -->
-      <!-- ETAPA 1: SELEÇÃO, NOVA PESAGEM OU PESAGENS ANTERIORES -->
-      <!-- ============================================================ -->
-      <div *ngIf="currentStep() === 1" class="step-content animate-fade">
-        
-        <!-- Banner de Sincronização Pendente -->
-        <div class="pending-sync-banner animate-fade" *ngIf="supabase.pendingSyncCount() > 0">
-          <div class="psb-info">
-            <span class="psb-icon">⏳</span>
-            <div class="psb-text">
-              <strong class="psb-title">{{ supabase.pendingSyncCount() }} pesagem(ns) salva(s) no aparelho</strong>
-              <span class="psb-sub">Aguardando envio para o banco de dados da Colombo Agro.</span>
+      <!-- ========================================== -->
+      <!-- ABA: HISTÓRICO DE PESAGENS ANTERIORES     -->
+      <!-- ========================================== -->
+      <div *ngIf="activeTab() === 'history'" class="history-section animate-fade">
+
+        <div *ngIf="pastSessions().length === 0" class="card empty-state">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">Nenhuma pesagem anterior registrada.</div>
+          <p class="empty-sub">As pesagens concluídas na balança ficam salvas aqui para consulta, edição e exportação.</p>
+          <button type="button" class="btn btn-primary" (click)="switchTab('new')">
+            + Iniciar Primeira Pesagem
+          </button>
+        </div>
+
+        <div *ngFor="let ps of pastSessions()" class="card session-history-card animate-fade">
+          <div class="shc-header">
+            <div>
+              <div class="shc-farm">{{ ps.farm_name }}</div>
+              <div class="shc-meta">📅 {{ ps.created_at ? (ps.created_at | date:'dd/MM/yyyy HH:mm') : ps.session_date }} • 👤 {{ ps.responsible_name }} • 📍 {{ ps.location }}</div>
+              <div class="shc-updated" *ngIf="ps.updated_at && ps.updated_at !== ps.created_at" style="font-size: 0.8rem; color: var(--color-accent); font-weight: 600; margin-top: 3px;">
+                ✏️ Atualizado: {{ ps.updated_at | date:'dd/MM/yyyy HH:mm' }}
+              </div>
+            </div>
+            <div class="shc-badges">
+              <!-- Status de Sincronização / Envio -->
+              <span 
+                class="badge-sync-pill"
+                [class.synced]="ps.sync_status === 'synced'"
+                [class.pending]="ps.sync_status !== 'synced'"
+                [title]="ps.sync_status === 'synced' ? 'Pesagem transmitida e gravada na nuvem Colombo Agro' : 'Salva apenas no aparelho. Será enviada automaticamente ao reconectar.'"
+              >
+                {{ ps.sync_status === 'synced' ? '🟢 Enviado' : '🟡 No Aparelho' }}
+              </span>
+              <span class="badge badge-success">{{ ps.total_animals }} cab</span>
             </div>
           </div>
-          <button 
-            type="button" 
-            class="btn-psb-sync" 
-            (click)="syncNow()" 
-            [disabled]="supabase.isSyncing()"
-          >
-            <span *ngIf="!supabase.isSyncing()">📤 Enviar Agora</span>
-            <span *ngIf="supabase.isSyncing()">Sincronizando...</span>
-          </button>
-        </div>
 
-        <!-- Abas de Navegação no Topo: Nova Pesagem vs Pesagens Anteriores -->
-        <div class="seller-mode-tabs">
-          <button 
-            type="button" 
-            class="seller-tab-btn" 
-            [class.active]="activeTab() === 'new'" 
-            (click)="switchTab('new')"
-          >
-            ➕ Iniciar Nova Pesagem
-          </button>
-          <button 
-            type="button" 
-            class="seller-tab-btn" 
-            [class.active]="activeTab() === 'history'" 
-            (click)="switchTab('history')"
-          >
-            📂 Pesagens Anteriores ({{ pastSessions().length }})
-          </button>
-        </div>
+          <div class="shc-stats-row">
+            <div class="shc-stat">
+              <span class="shc-lbl">Peso Total:</span>
+              <strong>{{ ps.total_weight_kg | number:'1.1-1' }} kg</strong>
+            </div>
+            <div class="shc-stat">
+              <span class="shc-lbl">Média:</span>
+              <strong class="text-accent">{{ ps.avg_weight_kg | number:'1.1-1' }} kg/cab</strong>
+            </div>
+            <div class="shc-stat" *ngIf="ps.items && ps.items.length > 0">
+              <span class="shc-lbl">Balançadas:</span>
+              <strong>{{ ps.items.length }}</strong>
+            </div>
+          </div>
 
-        <!-- ========================================== -->
-        <!-- ABA: HISTÓRICO DE PESAGENS ANTERIORES     -->
-        <!-- ========================================== -->
-        <div *ngIf="activeTab() === 'history'" class="history-section animate-fade">
-          <div *ngIf="pastSessions().length === 0" class="card empty-state">
-            <div class="empty-icon">📋</div>
-            <div class="empty-text">Nenhuma pesagem anterior registrada.</div>
-            <p class="empty-sub">As pesagens concluídas na balança ficam salvas aqui para consulta, edição e exportação.</p>
-            <button type="button" class="btn btn-primary" (click)="switchTab('new')">
-              + Iniciar Primeira Pesagem
+          <div class="shc-obs" *ngIf="ps.observations">
+            🏷️ <em>{{ ps.observations }}</em>
+          </div>
+
+          <div class="shc-actions">
+            <button type="button" class="btn-action view" (click)="viewPastSession(ps)" title="Visualizar Balançadas">
+              🔍 Ver
+            </button>
+            <button type="button" class="btn-action edit" (click)="editSession(ps)" title="Editar / Continuar Pesagem">
+              ✏️ Editar
+            </button>
+            <button 
+              *ngIf="ps.sync_status !== 'synced'" 
+              type="button" 
+              class="btn-action send" 
+              (click)="syncSessionNow(ps)" 
+              title="Enviar esta pesagem para a nuvem agora"
+            >
+              📤 Enviar
+            </button>
+            <button type="button" class="btn-action csv" (click)="exportPastSessionCsv(ps)" title="Baixar Planilha CSV">
+              📥 CSV
+            </button>
+            <button type="button" class="btn-action zap" (click)="sharePastSessionWhatsApp(ps)" title="Compartilhar no WhatsApp">
+              <svg class="whatsapp-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24zm4.52 11.53c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.41-1.75-.14-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.14.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43-.14-.01-.31-.01-.48-.01-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.13.17 1.77 2.7 4.29 3.79.6.26 1.07.41 1.44.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.07-.12-.23-.19-.48-.31z"/>
+              </svg>
+              Zap
+            </button>
+            <button type="button" class="btn-action del" (click)="deletePastSession(ps.id)" title="Excluir Romaneio">
+              🗑️ Excluir
             </button>
           </div>
+        </div>
+      </div>
 
-          <div *ngFor="let ps of pastSessions()" class="card session-history-card animate-fade">
-            <div class="shc-header">
-              <div>
-                <div class="shc-farm">{{ ps.farm_name }}</div>
-                <div class="shc-meta">📅 {{ ps.created_at ? (ps.created_at | date:'dd/MM/yyyy HH:mm') : ps.session_date }} • 👤 {{ ps.responsible_name }} • 📍 {{ ps.location }}</div>
-                <div class="shc-updated" *ngIf="ps.updated_at && ps.updated_at !== ps.created_at" style="font-size: 0.8rem; color: var(--color-accent); font-weight: 600; margin-top: 3px;">
-                  ✏️ Atualizado: {{ ps.updated_at | date:'dd/MM/yyyy HH:mm' }}
-                </div>
-              </div>
-              <div class="shc-badges">
-                <!-- Status de Sincronização / Envio -->
-                <span 
-                  class="badge-sync-pill"
-                  [class.synced]="ps.sync_status === 'synced'"
-                  [class.pending]="ps.sync_status !== 'synced'"
-                  [title]="ps.sync_status === 'synced' ? 'Pesagem transmitida e gravada na nuvem Colombo Agro' : 'Salva apenas no aparelho. Será enviada automaticamente ao reconectar.'"
-                >
-                  {{ ps.sync_status === 'synced' ? '🟢 Enviado' : '🟡 No Aparelho' }}
-                </span>
-                <span class="badge badge-success">{{ ps.total_animals }} cab</span>
-              </div>
-            </div>
+      <!-- ============================================================ -->
+      <!-- ABA: FLUXO DE PESAGEM / CADASTRO                           -->
+      <!-- ============================================================ -->
+      <div *ngIf="activeTab() === 'new'" class="new-session-flow animate-fade">
 
-            <div class="shc-stats-row">
-              <div class="shc-stat">
-                <span class="shc-lbl">Peso Total:</span>
-                <strong>{{ ps.total_weight_kg | number:'1.1-1' }} kg</strong>
-              </div>
-              <div class="shc-stat">
-                <span class="shc-lbl">Média:</span>
-                <strong class="text-accent">{{ ps.avg_weight_kg | number:'1.1-1' }} kg/cab</strong>
-              </div>
-              <div class="shc-stat" *ngIf="ps.items && ps.items.length > 0">
-                <span class="shc-lbl">Balançadas:</span>
-                <strong>{{ ps.items.length }}</strong>
-              </div>
-            </div>
-
-            <div class="shc-obs" *ngIf="ps.observations">
-              🏷️ <em>{{ ps.observations }}</em>
-            </div>
-
-            <div class="shc-actions">
-              <button type="button" class="btn-action view" (click)="viewPastSession(ps)" title="Visualizar Balançadas">
-                🔍 Ver
-              </button>
-              <button type="button" class="btn-action edit" (click)="editSession(ps)" title="Editar / Continuar Pesagem">
-                ✏️ Editar
-              </button>
-              <button 
-                *ngIf="ps.sync_status !== 'synced'" 
-                type="button" 
-                class="btn-action send" 
-                (click)="syncSessionNow(ps)" 
-                title="Enviar esta pesagem para a nuvem agora"
-              >
-                📤 Enviar
-              </button>
-              <button type="button" class="btn-action csv" (click)="exportPastSessionCsv(ps)" title="Baixar Planilha CSV">
-                📥 CSV
-              </button>
-              <button type="button" class="btn-action zap" (click)="sharePastSessionWhatsApp(ps)" title="Compartilhar no WhatsApp">
-                <svg class="whatsapp-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                  <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24zm4.52 11.53c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.41-1.75-.14-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.14.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43-.14-.01-.31-.01-.48-.01-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.13.17 1.77 2.7 4.29 3.79.6.26 1.07.41 1.44.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.07-.12-.23-.19-.48-.31z"/>
-                </svg>
-                Zap
-              </button>
-              <button type="button" class="btn-action del" (click)="deletePastSession(ps.id)" title="Excluir Romaneio">
-                🗑️ Excluir
-              </button>
-            </div>
-          </div>
+        <!-- SOLUÇÃO 1: Stepper Visual de Etapas -->
+        <div class="stepper">
+          <button 
+            type="button" 
+            class="step-pill" 
+            [class.active]="currentStep() === 1" 
+            [class.completed]="currentStep() > 1" 
+            (click)="goToStep(1)"
+          >
+            <span class="step-num">{{ currentStep() > 1 ? '✓' : '1' }}</span>
+            <span class="step-label">Identificação</span>
+          </button>
+          <div class="step-line" [class.completed]="currentStep() > 1"></div>
+          <button 
+            type="button" 
+            class="step-pill" 
+            [class.active]="currentStep() === 2" 
+            [class.completed]="currentStep() > 2" 
+            (click)="goToStep(2)"
+            [disabled]="!selectedSeller || !sessionWeigher || !sessionDate"
+          >
+            <span class="step-num">{{ currentStep() > 2 ? '✓' : '2' }}</span>
+            <span class="step-label">Balança Digital</span>
+          </button>
+          <div class="step-line" [class.completed]="currentStep() > 2"></div>
+          <button 
+            type="button" 
+            class="step-pill" 
+            [class.active]="currentStep() === 3" 
+            [class.completed]="currentStep() > 3" 
+            (click)="goToStep(3)"
+            [disabled]="weighingItems().length === 0"
+          >
+            <span class="step-num">3</span>
+            <span class="step-label">Fechamento</span>
+          </button>
         </div>
 
-        <!-- ========================================== -->
-        <!-- ABA: NOVA PESAGEM / CADASTRO               -->
-        <!-- ========================================== -->
-        <div *ngIf="activeTab() === 'new'" class="animate-fade">
+        <!-- ============================================================ -->
+        <!-- ETAPA 1: IDENTIFICAÇÃO DO PRODUTOR & FAZENDA                -->
+        <!-- ============================================================ -->
+        <div *ngIf="currentStep() === 1" class="step-content animate-fade">
           <div class="card header-hero">
             <div class="hero-tag">Venda Colombo Agro</div>
             <h2 class="hero-title">Identificação do Produtor & Fazenda</h2>
@@ -661,6 +676,24 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
               <strong class="sm-value">{{ stats().avgWeightKg | number:'1.2-2' }} kg/cab</strong>
             </div>
           </div>
+
+          <!-- SOLUÇÃO 5: Detalhamento Compacto / Recolhível de Balançadas -->
+          <div class="summary-divider"></div>
+          <div class="summary-items-toggle-box">
+            <button type="button" class="btn-summary-toggle" (click)="toggleSummaryDetails()">
+              <span>📋 Ver Balançadas Individuais ({{ weighingItems().length }})</span>
+              <span class="toggle-arrow">{{ showSummaryDetails ? '▲ Ocultar' : '▼ Expandir' }}</span>
+            </button>
+            <div *ngIf="showSummaryDetails" class="summary-items-scroll animate-fade">
+              <div *ngFor="let item of weighingItems()" class="summary-item-row">
+                <span class="sir-seq">#{{ item.sequence_number }}</span>
+                <span class="sir-qty">{{ item.animal_count }} {{ item.animal_count === 1 ? 'cab' : 'cabs' }}</span>
+                <span class="sir-weight"><strong>{{ item.weight_kg | number:'1.1-1' }}</strong> kg</span>
+                <span class="sir-avg text-accent">{{ item.avg_weight_kg | number:'1.1-1' }} kg/cab</span>
+                <span *ngIf="item.notes" class="sir-notes">🏷️ {{ item.notes }}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Ações de Envio e Transmissão -->
@@ -744,116 +777,181 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       <!-- MODAL DE VISUALIZAÇÃO DE PESAGEM ANTERIOR                    -->
       <!-- ============================================================ -->
       <div *ngIf="activeViewingSession" class="modal-overlay" (click)="closeViewingSession()">
-        <div class="modal-dialog modal-xl" (click)="$event.stopPropagation()">
+        <div class="modal-dialog modal-xl modal-view-session animate-fade" (click)="$event.stopPropagation()">
           
+          <!-- Header do Modal -->
           <div class="modal-header-row">
-            <div>
+            <div class="modal-header-left">
               <div class="modal-tag-row">
-                <span class="badge badge-success">DETALHES DA PESAGEM</span>
+                <span class="badge badge-success">ROMANEIO</span>
                 <span 
                   class="badge-sync-pill"
                   [class.synced]="activeViewingSession.sync_status === 'synced'"
                   [class.pending]="activeViewingSession.sync_status !== 'synced'"
                 >
-                  {{ activeViewingSession.sync_status === 'synced' ? '🟢 Enviado para Nuvem Colombo' : '🟡 Salvo Apenas no Aparelho' }}
+                  {{ activeViewingSession.sync_status === 'synced' ? '🟢 Nuvem Colombo' : '🟡 No Aparelho' }}
                 </span>
               </div>
               <h2 class="modal-title mt-1">{{ activeViewingSession.farm_name }}</h2>
-              <p class="modal-sub">
-                Produtor: <strong>{{ activeViewingSession.seller_name }}</strong> • 
-                Data: <strong>{{ activeViewingSession.created_at ? (activeViewingSession.created_at | date:'dd/MM/yyyy HH:mm') : activeViewingSession.session_date }}</strong> • 
-                Pesador: <strong>{{ activeViewingSession.responsible_name }}</strong>
-                <span *ngIf="activeViewingSession.updated_at && activeViewingSession.updated_at !== activeViewingSession.created_at" style="color: var(--color-accent); font-weight: 600; margin-left: 6px;">
-                  • ✏️ Atualizado: <strong>{{ activeViewingSession.updated_at | date:'dd/MM/yyyy HH:mm' }}</strong>
+              <div class="modal-meta-grid">
+                <span>👤 {{ activeViewingSession.seller_name }}</span>
+                <span>📅 {{ activeViewingSession.created_at ? (activeViewingSession.created_at | date:'dd/MM/yyyy HH:mm') : activeViewingSession.session_date }}</span>
+                <span>⚖️ Pesador: {{ activeViewingSession.responsible_name }}</span>
+                <span *ngIf="activeViewingSession.updated_at && activeViewingSession.updated_at !== activeViewingSession.created_at" class="meta-updated">
+                  ✏️ Atualizado: {{ activeViewingSession.updated_at | date:'dd/MM/yyyy HH:mm' }}
                 </span>
-              </p>
+              </div>
             </div>
-            <button type="button" class="btn-close" (click)="closeViewingSession()">✕</button>
+            <button type="button" class="btn-close" (click)="closeViewingSession()" title="Fechar">✕</button>
           </div>
 
           <div class="modal-obs-box" *ngIf="activeViewingSession.observations">
-            <strong>Observações:</strong> {{ activeViewingSession.observations }}
+            🏷️ <strong>Obs:</strong> {{ activeViewingSession.observations }}
           </div>
 
-          <!-- Métricas Resumidas -->
+          <!-- Métricas Resumidas (KPIs) -->
           <div class="modal-metrics-bar">
             <div class="mm-item">
-              <span class="mm-lbl">Total Cabeças</span>
+              <span class="mm-lbl">Cabeças</span>
               <strong class="mm-val">{{ activeViewingSession.total_animals }}</strong>
             </div>
             <div class="mm-item">
-              <span class="mm-lbl">Peso Bruto Total</span>
-              <strong class="mm-val">{{ activeViewingSession.total_weight_kg | number:'1.2-2' }} kg</strong>
+              <span class="mm-lbl">Peso Total</span>
+              <strong class="mm-val">{{ activeViewingSession.total_weight_kg | number:'1.1-1' }} <small>kg</small></strong>
             </div>
-            <div class="mm-item">
-              <span class="mm-lbl">Média / Cabeça</span>
-              <strong class="mm-val text-accent">{{ activeViewingSession.avg_weight_kg | number:'1.2-2' }} kg</strong>
+            <div class="mm-item highlight">
+              <span class="mm-lbl">Média / Cab</span>
+              <strong class="mm-val text-accent">{{ activeViewingSession.avg_weight_kg | number:'1.1-1' }} <small>kg</small></strong>
             </div>
           </div>
 
-          <!-- Tabela de Balançadas -->
-          <div class="modal-table-container">
-            <table class="detail-table">
-              <thead>
-                <tr>
-                  <th>Balançada #</th>
-                  <th class="text-center">Cabeças</th>
-                  <th class="text-right">Peso (kg)</th>
-                  <th class="text-right">Média (kg)</th>
-                  <th>Anotação</th>
-                  <th>Horários</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let item of activeViewingSession.items">
-                  <td class="td-seq">#{{ item.sequence_number }}</td>
-                  <td class="text-center"><strong>{{ item.animal_count }}</strong></td>
-                  <td class="text-right td-mono font-bold">{{ item.weight_kg | number:'1.2-2' }} kg</td>
-                  <td class="text-right td-mono text-accent">{{ item.avg_weight_kg | number:'1.2-2' }} kg</td>
-                  <td class="td-notes">{{ item.notes || '-' }}</td>
-                  <td class="td-timestamp" style="font-size: 0.75rem; white-space: nowrap;">
-                    <div class="ts-created">
-                      🕒 {{ item.created_at ? (item.created_at | date:'dd/MM/yyyy HH:mm:ss') : '-' }}
-                    </div>
-                    <div class="ts-updated" *ngIf="item.updated_at && item.updated_at !== item.created_at" style="color: var(--color-accent); font-weight: 600;">
-                      ✏️ {{ item.updated_at | date:'dd/MM/yyyy HH:mm:ss' }}
-                    </div>
-                  </td>
-                </tr>
-                <tr *ngIf="!activeViewingSession.items || activeViewingSession.items.length === 0">
-                  <td colspan="6" class="text-center py-3 text-muted">Nenhum detalhe de balançada registrado.</td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- Seção de Balançadas (Cards Mobile-First) -->
+          <div class="modal-items-header">
+            <span class="modal-section-lbl">Balançadas Realizadas ({{ activeViewingSession.items?.length || 0 }})</span>
+          </div>
+
+          <div class="modal-items-container">
+            <div *ngFor="let item of activeViewingSession.items" class="modal-item-row animate-fade">
+              <span class="mir-seq">#{{ item.sequence_number }}</span>
+              <div class="mir-info">
+                <div class="mir-main">
+                  <span class="mir-qty">{{ item.animal_count }} {{ item.animal_count === 1 ? 'cab' : 'cabs' }}</span>
+                  <span class="mir-weight"><strong>{{ item.weight_kg | number:'1.1-1' }}</strong> kg</span>
+                </div>
+                <div class="mir-sub">
+                  <span class="mir-avg">Média: {{ item.avg_weight_kg | number:'1.1-1' }} kg/cab</span>
+                  <span *ngIf="item.created_at" class="mir-time">🕒 {{ item.created_at | date:'HH:mm:ss' }}</span>
+                  <span *ngIf="item.notes" class="mir-notes">🏷️ {{ item.notes }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div *ngIf="!activeViewingSession.items || activeViewingSession.items.length === 0" class="empty-state py-2">
+              <p class="text-muted">Nenhum detalhe de balançada registrado.</p>
+            </div>
           </div>
 
           <!-- Ações do Modal -->
-          <div class="modal-actions-row">
+          <div class="modal-actions-box">
             <button 
               *ngIf="activeViewingSession.sync_status !== 'synced'" 
               type="button" 
-              class="btn btn-warning"
+              class="btn btn-warning btn-lg btn-block"
               (click)="syncSessionNow(activeViewingSession)"
             >
-              📤 Enviar para Nuvem Agora
+              📤 Enviar para Nuvem Colombo
             </button>
-            <button type="button" class="btn btn-primary flex-1" (click)="editSession(activeViewingSession)">
-              ✏️ Editar Esta Pesagem
+            <button type="button" class="btn btn-primary btn-lg btn-block" (click)="editSession(activeViewingSession)">
+              ✏️ Editar / Retomar Pesagem
             </button>
-            <button type="button" class="btn btn-secondary" (click)="exportPastSessionCsv(activeViewingSession)">
-              📥 CSV
-            </button>
-            <button type="button" class="btn btn-whatsapp" (click)="sharePastSessionWhatsApp(activeViewingSession)">
-              <svg class="whatsapp-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24zm4.52 11.53c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.41-1.75-.14-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.14.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43-.14-.01-.31-.01-.48-.01-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.13.17 1.77 2.7 4.29 3.79.6.26 1.07.41 1.44.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.07-.12-.23-.19-.48-.31z"/>
-              </svg>
-              WhatsApp
-            </button>
-            <button type="button" class="btn btn-secondary" (click)="closeViewingSession()">
-              Fechar
+            <div class="modal-export-row">
+              <button type="button" class="btn btn-secondary flex-1" (click)="exportPastSessionCsv(activeViewingSession)">
+                📥 Baixar CSV
+              </button>
+              <button type="button" class="btn btn-whatsapp flex-1" (click)="sharePastSessionWhatsApp(activeViewingSession)">
+                <svg class="whatsapp-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24zm4.52 11.53c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.41-1.75-.14-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.14.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43-.14-.01-.31-.01-.48-.01-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.13.17 1.77 2.7 4.29 3.79.6.26 1.07.41 1.44.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.07-.12-.23-.19-.48-.31z"/>
+                </svg>
+                WhatsApp
+              </button>
+            </div>
+            <button type="button" class="btn btn-secondary btn-block" (click)="closeViewingSession()">
+              ✕ Fechar
             </button>
           </div>
 
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- MODAL DE ALERTA DE PESO FORA DO PADRÃO (DEDOS GORDOS)        -->
+      <!-- ============================================================ -->
+      <div *ngIf="weightAnomalyWarning()" class="modal-overlay animate-fade" (click)="dismissAnomalyWarning()">
+        <div class="modal-dialog modal-anomaly" (click)="$event.stopPropagation()">
+          <div class="anomaly-icon-badge">⚠️</div>
+          <h3 class="modal-title">Peso Fora do Padrão</h3>
+          
+          <div class="anomaly-info-card">
+            <div class="anomaly-msg">{{ weightAnomalyWarning()?.message }}</div>
+            <div class="anomaly-details-grid">
+              <div class="ad-item">
+                <span class="ad-lbl">Peso Digitado</span>
+                <strong class="ad-val">{{ numericWeight }} kg</strong>
+              </div>
+              <div class="ad-item">
+                <span class="ad-lbl">Quantidade</span>
+                <strong class="ad-val">{{ currentAnimalCount }} {{ currentAnimalCount === 1 ? 'cab' : 'cabs' }}</strong>
+              </div>
+              <div class="ad-item highlight">
+                <span class="ad-lbl">Média / Cab</span>
+                <strong class="ad-val text-accent">{{ weightAnomalyWarning()?.avg | number:'1.1-1' }} kg</strong>
+              </div>
+            </div>
+          </div>
+
+          <p class="modal-desc">
+            O peso informado está fora da faixa típica de pesagem no curral (<strong>120 a 900 kg/cab</strong>). Verifique se não houve erro de digitação.
+          </p>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-warning btn-lg btn-block" (click)="confirmAddWeighingItem()">
+              ✅ Confirmar Balançada ({{ numericWeight }} kg)
+            </button>
+            <button type="button" class="btn btn-secondary btn-lg btn-block" (click)="dismissAnomalyWarning()">
+              ✏️ Corrigir Peso no Teclado
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- MODAL DE CONFIRMAÇÃO: CANCELAR E REINICIAR PESAGEM DO ZERO   -->
+      <!-- ============================================================ -->
+      <div *ngIf="showCancelConfirmModal" class="modal-overlay animate-fade" (click)="closeCancelConfirmModal()">
+        <div class="modal-dialog modal-danger-dialog" (click)="$event.stopPropagation()">
+          <div class="modal-icon text-danger">⚠️</div>
+          <h3 class="modal-title">Cancelar Pesagem Atual?</h3>
+          
+          <div class="cancel-warning-box">
+            <div class="cwb-title">Você já possui uma pesagem em andamento:</div>
+            <div class="cwb-details">
+              <span>📍 Fazenda: <strong>{{ selectedSeller?.farm_name || 'Propriedade em pesagem' }}</strong></span>
+              <span>⚖️ Balanço: <strong>{{ stats().totalAnimals }} cabeças pesadas</strong> ({{ stats().totalWeightKg | number:'1.0-1' }} kg)</span>
+            </div>
+          </div>
+
+          <p class="modal-desc">
+            Iniciar uma nova pesagem agora irá <strong>descartar todos os lançamentos atuais</strong> e começar uma pesagem do zero. Deseja continuar?
+          </p>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-danger btn-lg btn-block" (click)="cancelAndStartFresh()">
+              🗑️ Sim, Cancelar e Começar do Zero
+            </button>
+            <button type="button" class="btn btn-secondary btn-lg btn-block" (click)="closeCancelConfirmModal()">
+              ⬅ Continuar Pesagem Atual
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1486,6 +1584,87 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       box-shadow: 0 6px 20px rgba(5, 150, 105, 0.4);
     }
 
+    /* Alerta de Peso Anômalo */
+    .weight-anomaly-box {
+      background: rgba(245, 158, 11, 0.14);
+      border: 2px solid #f59e0b;
+      border-radius: var(--radius-lg);
+      padding: 0.85rem 1rem;
+      margin-top: 0.65rem;
+      margin-bottom: 0.45rem;
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.25);
+    }
+
+    .wab-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .wab-icon {
+      font-size: 1.35rem;
+    }
+
+    .wab-title {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .wab-title strong {
+      color: #fbbf24;
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+
+    .wab-title span {
+      font-size: 0.8rem;
+      color: #fde68a;
+    }
+
+    .wab-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin: 0.35rem 0 0.65rem 0;
+      line-height: 1.35;
+    }
+
+    .wab-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    .wab-cancel {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: var(--text-main);
+      background: rgba(0, 0, 0, 0.35);
+      padding: 0.55rem;
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .wab-confirm {
+      background: #f59e0b;
+      color: #000;
+      border: none;
+      padding: 0.55rem;
+      font-weight: 800;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .wab-confirm:active {
+      transform: scale(0.97);
+    }
+
     .btn-icon {
       width: 24px;
       height: 24px;
@@ -1842,13 +2021,126 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       gap: 0.65rem;
     }
 
-    .action-footer {
-      margin-top: 1rem;
+    /* Modal de Alerta de Anomalia de Peso */
+    .modal-dialog.modal-anomaly {
+      border: 1.5px solid #f59e0b;
+      box-shadow: 0 0 30px rgba(245, 158, 11, 0.25);
     }
 
-    /* Banner de Edição Ativa */
+    .anomaly-icon-badge {
+      font-size: 2.8rem;
+      margin-bottom: 0.5rem;
+      animation: pulse 1.5s infinite;
+    }
+
+    .anomaly-info-card {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: var(--radius-md);
+      padding: 0.75rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .anomaly-msg {
+      color: #fbbf24;
+      font-weight: 700;
+      font-size: 0.88rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .anomaly-details-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.4rem;
+      background: var(--bg-surface-elevated);
+      padding: 0.5rem;
+      border-radius: var(--radius-sm);
+    }
+
+    .ad-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.15rem;
+    }
+
+    .ad-item.highlight {
+      border-left: 1px solid var(--border);
+      padding-left: 0.35rem;
+    }
+
+    .ad-lbl {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .ad-val {
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      color: var(--text-main);
+    }
+
+    /* Modal de Alerta de Cancelamento de Pesagem */
+    .modal-dialog.modal-danger-dialog {
+      border: 1.5px solid rgba(239, 68, 68, 0.6);
+      box-shadow: 0 0 35px rgba(239, 68, 68, 0.25);
+    }
+
+    .cancel-warning-box {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 0.85rem;
+      text-align: left;
+    }
+
+    .cwb-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #fca5a5;
+      margin-bottom: 0.4rem;
+    }
+
+    .cwb-details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      font-size: 0.82rem;
+      color: var(--text-main);
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: #ffffff;
+      font-weight: 700;
+      border: 1px solid #dc2626;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+
+    /* SOLUÇÃO 6: Rodapé Sticky Ergonômico de Ação na Balança */
+    .action-footer {
+      margin-top: 1rem;
+      position: sticky;
+      bottom: 0.75rem;
+      z-index: 20;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 0.65rem;
+      border-radius: var(--radius-lg);
+      border: 1.5px solid rgba(52, 211, 153, 0.35);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    /* SOLUÇÃO 3: Banner de Edição Ativa */
     .editing-banner {
-      background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(30, 41, 59, 0.95) 100%);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(30, 41, 59, 0.95) 100%);
       border: 1.5px solid #f59e0b;
       border-radius: var(--radius-lg);
       padding: 0.65rem 1rem;
@@ -1856,6 +2148,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       align-items: center;
       justify-content: space-between;
       gap: 0.75rem;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
     }
 
     .eb-info {
@@ -1873,27 +2166,158 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       padding: 0.2rem 0.45rem;
       border-radius: var(--radius-sm);
       letter-spacing: 0.05em;
+      white-space: nowrap;
     }
 
     .eb-text {
       color: var(--text-main);
     }
 
-    .btn-eb-cancel {
+    .btn-cancel-edit, .btn-eb-cancel {
       background: rgba(239, 68, 68, 0.2);
-      border: 1px solid rgba(239, 68, 68, 0.4);
+      border: 1px solid rgba(239, 68, 68, 0.45);
       color: #fca5a5;
-      font-size: 0.75rem;
+      font-size: 0.78rem;
       font-weight: 700;
-      padding: 0.3rem 0.6rem;
+      padding: 0.4rem 0.75rem;
       border-radius: var(--radius-sm);
       cursor: pointer;
       white-space: nowrap;
+      transition: all 0.15s ease;
     }
 
-    .btn-eb-cancel:hover {
+    .btn-cancel-edit:hover, .btn-eb-cancel:hover {
       background: rgba(239, 68, 68, 0.4);
       color: #fff;
+    }
+
+    /* SOLUÇÃO 2: Banner de Proteção de Sessão Ativa ao navegar no Histórico */
+    .active-session-alert-banner {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 1.5px solid #10b981;
+      border-radius: var(--radius-lg);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
+      margin-bottom: 0.75rem;
+    }
+
+    .asab-info {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .asab-icon {
+      font-size: 1.6rem;
+      animation: pulse 1.5s infinite;
+    }
+
+    .asab-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .asab-text strong {
+      color: #34d399;
+      font-size: 0.92rem;
+    }
+
+    .asab-text span {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .asab-btn {
+      white-space: nowrap;
+      font-weight: 800;
+      padding: 0.5rem 0.85rem;
+    }
+
+    /* SOLUÇÃO 5: Estilos para Detalhamento Compacto / Recolhível no Resumo */
+    .summary-items-toggle-box {
+      margin-top: 0.5rem;
+    }
+
+    .btn-summary-toggle {
+      width: 100%;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.65rem 0.85rem;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.15s ease;
+    }
+
+    .btn-summary-toggle:hover {
+      border-color: #34d399;
+      background: var(--primary-subtle);
+    }
+
+    .toggle-arrow {
+      font-size: 0.75rem;
+      color: #34d399;
+    }
+
+    .summary-items-scroll {
+      margin-top: 0.5rem;
+      max-height: 220px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .summary-item-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.35rem 0.55rem;
+      background: var(--bg-surface-elevated);
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+    }
+
+    .sir-seq {
+      font-family: var(--font-mono);
+      font-weight: 800;
+      color: var(--text-muted);
+      width: 28px;
+    }
+
+    .sir-qty {
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .sir-weight {
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+
+    .sir-avg {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    .sir-notes {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-left: auto;
     }
 
     /* Abas de Modo no Vendedor */
@@ -1922,6 +2346,15 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       border-color: #34d399;
       color: #34d399;
       box-shadow: 0 0 10px rgba(52, 211, 153, 0.15);
+    }
+
+    .seller-tab-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      border-color: var(--border);
+      background: rgba(0, 0, 0, 0.15);
+      color: var(--text-muted);
+      box-shadow: none;
     }
 
     /* Cards de Histórico de Pesagens */
@@ -2250,35 +2683,76 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       }
     }
 
-    /* Modal XL */
+    /* Modal XL - Visualização de Romaneio */
     .modal-dialog.modal-xl {
-      max-width: 900px !important;
-      width: 95vw !important;
+      max-width: 640px !important;
+      width: 96vw !important;
       text-align: left;
-      padding: 2rem !important;
+      padding: 1.25rem 1rem !important;
+      max-height: 92vh !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow-y: auto !important;
+    }
+
+    @media (min-width: 600px) {
+      .modal-dialog.modal-xl {
+        padding: 1.75rem 1.5rem !important;
+      }
     }
 
     .modal-header-row {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
+      gap: 0.5rem;
       margin-bottom: 0.65rem;
     }
 
-    .modal-sub {
-      font-size: 0.8rem;
+    .modal-header-left {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .modal-meta-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.2rem;
+      font-size: 0.78rem;
       color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    @media (min-width: 500px) {
+      .modal-meta-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .meta-updated {
+      color: var(--color-accent);
+      font-weight: 600;
     }
 
     .btn-close {
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border);
       color: var(--text-muted);
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
       cursor: pointer;
       font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+
+    .btn-close:hover {
+      color: #fff;
+      border-color: var(--primary-light);
     }
 
     .modal-obs-box {
@@ -2294,61 +2768,155 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
     .modal-metrics-bar {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
+      gap: 0.4rem;
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
-      padding: 0.65rem;
+      padding: 0.6rem 0.4rem;
       margin-bottom: 0.75rem;
       text-align: center;
     }
 
+    .mm-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .mm-item.highlight {
+      border-left: 1px solid var(--border);
+    }
+
     .mm-lbl {
-      display: block;
       font-size: 0.68rem;
       color: var(--text-muted);
       font-weight: 700;
       text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
 
     .mm-val {
       font-family: var(--font-mono);
       font-size: 1.05rem;
       color: var(--text-main);
+      font-weight: 800;
     }
 
-    .modal-table-container {
-      max-height: 240px;
+    .mm-val small {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    /* Lista de Balançadas no Modal (Mobile First) */
+    .modal-items-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+
+    .modal-section-lbl {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #34d399;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .modal-items-container {
+      max-height: 250px;
       overflow-y: auto;
+      background: rgba(0, 0, 0, 0.2);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
+      padding: 0.45rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
       margin-bottom: 0.85rem;
     }
 
-    .detail-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.82rem;
-    }
-
-    .detail-table th {
+    .modal-item-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
       background: var(--bg-surface-elevated);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-sm);
       padding: 0.5rem 0.65rem;
-      font-size: 0.72rem;
+    }
+
+    .mir-seq {
+      font-family: var(--font-mono);
       font-weight: 800;
+      font-size: 0.85rem;
+      color: #34d399;
+      background: var(--primary-subtle);
+      padding: 0.2rem 0.45rem;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+    }
+
+    .mir-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .mir-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+    }
+
+    .mir-qty {
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .mir-weight {
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+
+    .mir-sub {
+      display: flex;
+      gap: 0.65rem;
+      font-size: 0.72rem;
       color: var(--text-muted);
-      text-transform: uppercase;
-      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
     }
 
-    .detail-table td {
-      padding: 0.5rem 0.65rem;
-      border-bottom: 1px solid var(--border);
+    .mir-avg {
+      color: #34d399;
+      font-family: var(--font-mono);
     }
 
-    .modal-actions-row {
+    .mir-time {
+      color: var(--text-muted);
+    }
+
+    .mir-notes {
+      color: #fbbf24;
+      font-style: italic;
+    }
+
+    /* Ações do Modal de Visualização */
+    .modal-actions-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+
+    .modal-export-row {
       display: flex;
       gap: 0.5rem;
-      flex-wrap: wrap;
+      width: 100%;
     }
   `]
 })
@@ -2363,6 +2931,12 @@ export class SellerComponent implements OnInit {
   isSaving = signal<boolean>(false);
   showSuccessModal = false;
   lastSaveSynced = false;
+  showSummaryDetails = false;
+
+  toggleSummaryDetails() {
+    this.audio.playClick();
+    this.showSummaryDetails = !this.showSummaryDetails;
+  }
 
   // Abas de Modo no Vendedor (Nova Pesagem vs Pesagens Anteriores)
   activeTab = signal<'new' | 'history'>('new');
@@ -2370,6 +2944,13 @@ export class SellerComponent implements OnInit {
   editingSessionOriginal: WeighingSession | null = null;
   pastSessions = signal<WeighingSession[]>(this.supabase.getLocalSessions().filter(s => s.status !== 'deleted'));
   activeViewingSession: WeighingSession | null = null;
+  weightAnomalyWarning = signal<{ isAnomaly: boolean; avg: number; message: string } | null>(null);
+  showCancelConfirmModal = false;
+
+  // Pesagem em andamento bloqueia a aba de pesagens anteriores
+  isWeighingInProgress = computed(() => {
+    return this.currentStep() >= 2 || this.weighingItems().length > 0 || !!this.activeSessionId();
+  });
 
   // Sellers
   sellers = signal<Seller[]>(this.supabase.getLocalSellers());
@@ -2521,7 +3102,37 @@ export class SellerComponent implements OnInit {
     this.audio.playScaleSuccess();
   }
 
+  onNewPesagemTabClick() {
+    this.audio.playClick();
+    if (this.isWeighingInProgress()) {
+      this.showCancelConfirmModal = true;
+    } else {
+      this.switchTab('new');
+    }
+  }
+
+  cancelAndStartFresh() {
+    this.audio.playDelete();
+    this.showCancelConfirmModal = false;
+    this.activeSessionId.set(null);
+    this.editingSessionOriginal = null;
+    this.weighingItems.set([]);
+    this.sessionObservations = '';
+    this.weightDigits = '';
+    this.currentStep.set(1);
+    this.activeTab.set('new');
+    this.scrollToTop();
+  }
+
+  closeCancelConfirmModal() {
+    this.audio.playClick();
+    this.showCancelConfirmModal = false;
+  }
+
   switchTab(tab: 'new' | 'history') {
+    if (tab === 'history' && this.isWeighingInProgress()) {
+      return;
+    }
     this.audio.playClick();
     this.activeTab.set(tab);
     if (tab === 'history') {
@@ -2610,6 +3221,7 @@ export class SellerComponent implements OnInit {
     this.weighingItems.set(clonedItems);
 
     this.closeViewingSession();
+    this.activeTab.set('new');
     this.currentStep.set(2);
     this.scrollToTop();
   }
@@ -2710,8 +3322,37 @@ export class SellerComponent implements OnInit {
 
     const qty = Math.max(1, this.currentAnimalCount || 1);
     const avg = weight / qty;
-    const nowIso = new Date().toISOString();
 
+    // Trava contra "Dedos Gordos": Se o peso por cabeça estiver fora de 120 kg a 900 kg
+    if (avg < 120 || avg > 900) {
+      this.audio.playWarning();
+      this.weightAnomalyWarning.set({
+        isAnomaly: true,
+        avg,
+        message: avg < 120 ? 'Peso muito leve (< 120 kg/cab)' : 'Peso muito elevado (> 900 kg/cab)'
+      });
+      return;
+    }
+
+    this.commitWeighingItem(weight, qty, avg);
+  }
+
+  confirmAddWeighingItem() {
+    const weight = this.numericWeight;
+    if (weight <= 0) return;
+    const qty = Math.max(1, this.currentAnimalCount || 1);
+    const avg = weight / qty;
+    this.weightAnomalyWarning.set(null);
+    this.commitWeighingItem(weight, qty, avg);
+  }
+
+  dismissAnomalyWarning() {
+    this.audio.playClick();
+    this.weightAnomalyWarning.set(null);
+  }
+
+  private commitWeighingItem(weight: number, qty: number, avg: number) {
+    const nowIso = new Date().toISOString();
     const newItem: WeighingItem = {
       sequence_number: this.weighingItems().length + 1,
       animal_count: qty,
@@ -2724,6 +3365,7 @@ export class SellerComponent implements OnInit {
 
     this.audio.playScaleSuccess();
     this.weighingItems.update(items => [...items, newItem]);
+    this.weightAnomalyWarning.set(null);
 
     // Reseta balança para a próxima cabeçada
     this.weightDigits = '';

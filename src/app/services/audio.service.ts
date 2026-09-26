@@ -42,7 +42,18 @@ export class AudioFeedbackService {
     }
   }
 
+  vibrate(pattern: number | number[] = 25) {
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(pattern);
+      }
+    } catch {
+      // Ignorar caso não suportado
+    }
+  }
+
   playScaleSuccess() {
+    this.vibrate([40, 50, 100]);
     this.playBeep(1046.5, 0.08); // High C
     setTimeout(() => {
       this.playBeep(1318.5, 0.14); // E
@@ -50,14 +61,22 @@ export class AudioFeedbackService {
   }
 
   playClick() {
+    this.vibrate(20);
     this.playBeep(440, 0.04, 'triangle');
   }
 
   playDelete() {
+    this.vibrate([50, 40, 50]);
     this.playBeep(320, 0.1, 'sawtooth');
   }
 
+  playWarning() {
+    this.vibrate([80, 50, 120]);
+    this.playBeep(260, 0.18, 'sawtooth');
+  }
+
   playCompleteCelebration() {
+    this.vibrate([100, 50, 100, 50, 200]);
     const notes = [523.25, 659.25, 783.99, 1046.50];
     notes.forEach((freq, idx) => {
       setTimeout(() => {

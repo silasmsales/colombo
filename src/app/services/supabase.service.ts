@@ -496,6 +496,131 @@ export class SupabaseService {
   }
 
   // ==========================================
+  // PAINEL DO COMPRADOR (100% ONLINE / SEM LOCALSTORAGE)
+  // ==========================================
+
+  public async getAdminSellers(): Promise<Seller[]> {
+    if (!this.client || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+      return [];
+    }
+    try {
+      const { data, error } = await this.withTimeout(
+        this.client
+          .from('sellers')
+          .select('*')
+          .order('farm_name', { ascending: true }),
+        4000
+      );
+      if (!error && data) {
+        this.isConnected.set(true);
+        return data;
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar vendedores online no painel comprador:', err);
+    }
+    return [];
+  }
+
+  public async getAdminSessions(sellerId?: string): Promise<WeighingSession[]> {
+    if (!this.client || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+      return [];
+    }
+    try {
+      let query = this.client
+        .from('weighing_sessions')
+        .select('*, items:weighing_items(*)')
+        .neq('status', 'deleted')
+        .order('session_date', { ascending: false });
+
+      if (sellerId) {
+        query = query.eq('seller_id', sellerId);
+      }
+
+      const { data, error } = await this.withTimeout(query, 4500);
+      if (!error && data) {
+        this.isConnected.set(true);
+        return data.map(item => ({
+          ...item,
+          sync_status: 'synced' as const,
+          items: (item.items || []).map((it: any) => ({
+            ...it,
+            created_at: it.created_at,
+            updated_at: it.updated_at || it.created_at
+          })).sort((a: WeighingItem, b: WeighingItem) => a.sequence_number - b.sequence_number)
+        }));
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar romaneios online no painel comprador:', err);
+    }
+    return [];
+  }
+
+  public async saveAdminSession(session: WeighingSession, items: WeighingItem[]): Promise<boolean> {
+    if (!this.client) return false;
+    const nowIso = new Date().toISOString();
+    try {
+      const sessionPayload = {
+        id: session.id,
+        seller_id: session.seller_id,
+        farm_name: session.farm_name,
+        seller_name: session.seller_name,
+        location: session.location,
+        responsible_name: session.responsible_name,
+        session_date: session.session_date,
+        observations: session.observations || '',
+        total_animals: session.total_animals,
+        total_weight_kg: session.total_weight_kg,
+        avg_weight_kg: session.avg_weight_kg,
+        total_arrobas: session.total_arrobas,
+        status: session.status || 'completed',
+        created_at: session.created_at || nowIso,
+        updated_at: session.updated_at || nowIso
+      };
+
+      const { error: sessionError } = await this.client
+        .from('weighing_sessions')
+        .upsert(sessionPayload);
+
+      if (sessionError) throw sessionError;
+
+      const itemsPayload = items.map((item, idx) => ({
+        id: item.id || this.generateUuid(),
+        session_id: session.id,
+        sequence_number: item.sequence_number || idx + 1,
+        animal_count: item.animal_count,
+        weight_kg: item.weight_kg,
+        avg_weight_kg: item.avg_weight_kg,
+        notes: item.notes || '',
+        created_at: item.created_at || nowIso,
+        updated_at: item.updated_at || item.created_at || nowIso
+      }));
+
+      await this.client.from('weighing_items').delete().eq('session_id', session.id);
+      if (itemsPayload.length > 0) {
+        await this.client.from('weighing_items').insert(itemsPayload);
+      }
+      return true;
+    } catch (err) {
+      console.error('Erro ao salvar edição no painel do comprador:', err);
+      return false;
+    }
+  }
+
+  public async deleteAdminSession(sessionId: string): Promise<boolean> {
+    if (!this.client) return false;
+    try {
+      await this.client
+        .from('weighing_sessions')
+        .update({ status: 'deleted', updated_at: new Date().toISOString() })
+        .eq('id', sessionId);
+      return true;
+    } catch (err) {
+      console.error('Erro ao excluir romaneio no painel do comprador:', err);
+      return false;
+    }
+  }
+
+  // ==========================================
   // LOCAL STORAGE
   // ==========================================
 

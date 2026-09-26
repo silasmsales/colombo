@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { AudioFeedbackService } from '../../services/audio.service';
 import { SupabaseService } from '../../services/supabase.service';
 
@@ -27,8 +27,8 @@ import { SupabaseService } from '../../services/supabase.service';
             type="button" 
             class="sync-indicator-btn"
             [class.syncing]="supabase.isSyncing()"
-            [class.pending]="supabase.pendingSyncCount() > 0 && !supabase.isSyncing()"
-            [class.online]="supabase.isConnected() && supabase.pendingSyncCount() === 0"
+            [class.pending]="isSellerRoute() && supabase.pendingSyncCount() > 0 && !supabase.isSyncing()"
+            [class.online]="supabase.isConnected() && (!isSellerRoute() || supabase.pendingSyncCount() === 0)"
             [class.offline]="!supabase.isConnected() && !supabase.isOnline()"
             (click)="triggerManualSync()"
             [title]="getSyncTooltip()"
@@ -37,13 +37,13 @@ import { SupabaseService } from '../../services/supabase.service';
             <span *ngIf="supabase.isSyncing()" class="sync-spinner">🔄</span>
             
             <!-- Ponto Verde se Conectado e sem pendências -->
-            <span *ngIf="!supabase.isSyncing() && supabase.isConnected() && supabase.pendingSyncCount() === 0" class="status-dot green"></span>
+            <span *ngIf="!supabase.isSyncing() && supabase.isConnected() && (!isSellerRoute() || supabase.pendingSyncCount() === 0)" class="status-dot green"></span>
             
-            <!-- Ponto Laranja se houver pendências -->
-            <span *ngIf="!supabase.isSyncing() && supabase.pendingSyncCount() > 0" class="status-dot orange"></span>
+            <!-- Ponto Laranja se houver pendências no vendedor -->
+            <span *ngIf="!supabase.isSyncing() && isSellerRoute() && supabase.pendingSyncCount() > 0" class="status-dot orange"></span>
             
             <!-- Ponto Cinza se offline -->
-            <span *ngIf="!supabase.isSyncing() && !supabase.isConnected() && supabase.pendingSyncCount() === 0" class="status-dot gray"></span>
+            <span *ngIf="!supabase.isSyncing() && !supabase.isConnected() && (!isSellerRoute() || supabase.pendingSyncCount() === 0)" class="status-dot gray"></span>
 
             <span class="sync-text">
               {{ getSyncLabel() }}
@@ -241,7 +241,7 @@ import { SupabaseService } from '../../services/supabase.service';
       border-color: #f59e0b;
     }
 
-    @media (max-width: 500px) {
+    @media (max-width: 520px) {
       .sync-text {
         display: none;
       }
@@ -254,9 +254,21 @@ import { SupabaseService } from '../../services/supabase.service';
 export class HeaderComponent {
   supabase = inject(SupabaseService);
   audio = inject(AudioFeedbackService);
+  router = inject(Router);
   isSunlightMode = false;
 
+  isSellerRoute(): boolean {
+    return !this.router.url.includes('/comprador');
+  }
+
   getSyncLabel(): string {
+    if (!this.isSellerRoute()) {
+      if (this.supabase.isConnected()) {
+        return 'Nuvem Online';
+      }
+      return 'Nuvem Offline';
+    }
+
     if (this.supabase.isSyncing()) {
       return 'Sincronizando...';
     }
@@ -274,6 +286,12 @@ export class HeaderComponent {
   }
 
   getSyncTooltip(): string {
+    if (!this.isSellerRoute()) {
+      return this.supabase.isConnected()
+        ? 'Painel Administrativo conectado em tempo real com o banco de dados na nuvem.'
+        : 'Painel Administrativo sem conexão com o servidor.';
+    }
+
     if (this.supabase.isSyncing()) {
       return 'Sincronizando pesagens com o banco de dados em segundo plano...';
     }
@@ -289,7 +307,11 @@ export class HeaderComponent {
 
   async triggerManualSync() {
     this.audio.playClick();
-    await this.supabase.syncPendingSessions();
+    if (this.isSellerRoute()) {
+      await this.supabase.syncPendingSessions();
+    } else {
+      await this.supabase.testConnection();
+    }
   }
 
   toggleSunlightMode() {

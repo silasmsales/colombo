@@ -1,7 +1,7 @@
 {
-  "name": "Colombo Agro - Pesagem de Gado",
-  "short_name": "Colombo Agro",
-  "description": "Sistema de Balança e Romaneios de Pesagem de Gado Colombo Agro",
+  "name": "Colombo Agro - Balança & Pesagem",
+  "short_name": "Balança Colombo",
+  "description": "Sistema Operacional Offline de Pesagem de Gado na Balança Colombo Agro",
   "theme_color": "#0b1120",
   "background_color": "#070c18",
   "display": "standalone",

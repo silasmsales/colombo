@@ -1245,8 +1245,9 @@ export class BuyerComponent implements OnInit {
 
   isLoading = signal<boolean>(false);
   isSaving = signal<boolean>(false);
-  sellers = signal<Seller[]>(this.supabase.getLocalSellers());
-  sessions = signal<WeighingSession[]>(this.supabase.getLocalSessions().filter(s => s.status !== 'deleted' && s.sync_status === 'synced'));
+  errorMessage = signal<string>('');
+  sellers = signal<Seller[]>([]);
+  sessions = signal<WeighingSession[]>([]);
 
   // Filtros Reativos como Signals para que o computed recalcule a cada caractere digitado
   selectedSellerFilter = signal<string>('');
@@ -1320,27 +1321,24 @@ export class BuyerComponent implements OnInit {
   });
 
   ngOnInit() {
-    // 1. Exibição instantânea do cache local
-    this.sellers.set(this.supabase.getLocalSellers());
-    this.sessions.set(this.supabase.getLocalSessions().filter(s => s.status !== 'deleted' && s.sync_status === 'synced'));
-    
-    // 2. Busca atualizações remotas em segundo plano
     this.refreshData();
   }
 
   async refreshData() {
     this.isLoading.set(true);
+    this.errorMessage.set('');
     try {
       const [sellersData, sessionsData] = await Promise.all([
-        this.supabase.getSellers(true),
-        this.supabase.getWeighingSessions(undefined, true)
+        this.supabase.getAdminSellers(),
+        this.supabase.getAdminSessions()
       ]);
-      if (sellersData && sellersData.length > 0) {
-        this.sellers.set(sellersData);
+      this.sellers.set(sellersData);
+      this.sessions.set(sessionsData);
+      if (!this.supabase.isOnline()) {
+        this.errorMessage.set('Dispositivo sem conexão com a internet.');
       }
-      if (sessionsData && sessionsData.length > 0) {
-        this.sessions.set(sessionsData);
-      }
+    } catch (e) {
+      this.errorMessage.set('Falha ao comunicar com o servidor da nuvem.');
     } finally {
       this.isLoading.set(false);
     }
@@ -1462,7 +1460,6 @@ export class BuyerComponent implements OnInit {
 
     if (this.activeDetailSession.items) {
       this.activeDetailSession.items.forEach((item, idx) => {
-        // Encontra o item original correspondente pelo ID ou número de sequência inicial
         const originalItem = originalItems.find(
           orig => (item.id && orig.id === item.id) || (orig.sequence_number === item.sequence_number)
         );
@@ -1478,7 +1475,6 @@ export class BuyerComponent implements OnInit {
           anyItemChanged = true;
           item.updated_at = nowIso;
         } else {
-          // Mantém exatamente o timestamp anterior de modificação
           item.updated_at = originalItem.updated_at || originalItem.created_at || item.updated_at || item.created_at || nowIso;
         }
 
@@ -1501,22 +1497,30 @@ export class BuyerComponent implements OnInit {
     }
 
     this.isSaving.set(true);
-    await this.supabase.saveWeighingSession(this.activeDetailSession, this.activeDetailSession.items || []);
-    await this.refreshData();
+    const success = await this.supabase.saveAdminSession(this.activeDetailSession, this.activeDetailSession.items || []);
+    if (success) {
+      await this.refreshData();
+      this.isEditingSession = false;
+      this.originalModalSessionSnapshot = JSON.parse(JSON.stringify(this.activeDetailSession));
+      this.audio.playScaleSuccess();
+    } else {
+      alert('Erro ao salvar edição na nuvem. Verifique a conexão com a internet.');
+    }
     this.isSaving.set(false);
-    this.isEditingSession = false;
-    this.originalModalSessionSnapshot = JSON.parse(JSON.stringify(this.activeDetailSession));
-    this.audio.playScaleSuccess();
   }
 
   async deleteSession(sessionId: string) {
-    if (!confirm('Deseja realmente excluir permanentemente esta pesagem?')) return;
+    if (!confirm('Deseja realmente excluir permanentemente esta pesagem do banco na nuvem?')) return;
     this.audio.playDelete();
-    await this.supabase.deleteWeighingSession(sessionId);
-    if (this.activeDetailSession?.id === sessionId) {
-      this.closeDetailModal();
+    const success = await this.supabase.deleteAdminSession(sessionId);
+    if (success) {
+      if (this.activeDetailSession?.id === sessionId) {
+        this.closeDetailModal();
+      }
+      await this.refreshData();
+    } else {
+      alert('Erro ao excluir pesagem na nuvem. Verifique a conexão.');
     }
-    await this.refreshData();
   }
 
   exportSessionCsv(session: WeighingSession) {
