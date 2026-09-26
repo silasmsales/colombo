@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1790387939473,
+  "timestamp": 1790389417547,
   "index": "/colombo/index.html",
   "assetGroups": [
     {
@@ -13,7 +13,7 @@
       "urls": [
         "/colombo/favicon.ico",
         "/colombo/index.html",
-        "/colombo/main-2F7HORQZ.js",
+        "/colombo/main-J5D3SSV4.js",
         "/colombo/manifest.webmanifest",
         "/colombo/styles-VAGBSKA6.css"
       ],
@@ -54,8 +54,8 @@
     "/colombo/icons/icon-512x512.png": "0756bc0830db27622df19fd343dfabc054e274c6",
     "/colombo/icons/icon-72x72.png": "5237365a78e0e27ae69ca87b5418229fce0a54e2",
     "/colombo/icons/icon-96x96.png": "d2174903004f5177c95e3ba67d22544fdf75fdbe",
-    "/colombo/index.html": "a9d8ee69b85e5ea0f6772207ea1cfdcb3ffae762",
-    "/colombo/main-2F7HORQZ.js": "868913d3da7bb02c7874ca01e0fa513d94a293d4",
+    "/colombo/index.html": "41267fd67f3ae504d78c12b3d8b5ca337b42faa6",
+    "/colombo/main-J5D3SSV4.js": "cbffec4088cb906575390c4c1a0301db7ac14425",
     "/colombo/manifest.webmanifest": "31a97a51db43205b522763f60ea9a8079d512d71",
     "/colombo/styles-VAGBSKA6.css": "ccf7cd99eab60f84fa8ad7607d7451c744e71857"
   },
