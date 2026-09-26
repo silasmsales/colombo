@@ -138,7 +138,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
               </svg>
               Zap
             </button>
-            <button type="button" class="btn-action del" (click)="deletePastSession(ps.id)" title="Excluir Romaneio">
+            <button type="button" class="btn-action del" (click)="promptDeleteSession(ps)" title="Excluir Romaneio">
               🗑️ Excluir
             </button>
           </div>
@@ -169,7 +169,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
             [class.active]="currentStep() === 2" 
             [class.completed]="currentStep() > 2" 
             (click)="goToStep(2)"
-            [disabled]="!selectedSeller || !sessionWeigher || !sessionDate"
+            [disabled]="!canGoToStep(2)"
           >
             <span class="step-num">{{ currentStep() > 2 ? '✓' : '2' }}</span>
             <span class="step-label">Balança Digital</span>
@@ -181,7 +181,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
             [class.active]="currentStep() === 3" 
             [class.completed]="currentStep() > 3" 
             (click)="goToStep(3)"
-            [disabled]="weighingItems().length === 0"
+            [disabled]="!canGoToStep(3)"
           >
             <span class="step-num">3</span>
             <span class="step-label">Fechamento</span>
@@ -536,7 +536,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="btn-icon">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
-            REGISTRAR PESAGEM ({{ currentAnimalCount }} {{ currentAnimalCount === 1 ? 'animal' : 'animais' }})
+            REGISTRAR PESAGEM
           </button>
         </div>
 
@@ -603,7 +603,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
             [disabled]="weighingItems().length === 0"
             (click)="goToStep(3)"
           >
-            Finalizar Pesagem & Ver Resumo ({{ stats().totalAnimals }} Cabeças) ➔
+            Finalizar Pesagem ➔
           </button>
         </div>
       </div>
@@ -875,9 +875,14 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
                 WhatsApp
               </button>
             </div>
-            <button type="button" class="btn btn-secondary btn-block" (click)="closeViewingSession()">
-              ✕ Fechar
-            </button>
+            <div class="modal-export-row">
+              <button type="button" class="btn btn-outline-danger flex-1" (click)="promptDeleteSession(activeViewingSession)" title="Excluir esta pesagem">
+                🗑️ Excluir Pesagem
+              </button>
+              <button type="button" class="btn btn-secondary flex-1" (click)="closeViewingSession()">
+                ✕ Fechar
+              </button>
+            </div>
           </div>
 
         </div>
@@ -932,7 +937,7 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
           <div class="modal-icon text-danger">⚠️</div>
           <h3 class="modal-title">Cancelar Pesagem Atual?</h3>
           
-          <div class="cancel-warning-box">
+          <div class="cancel-warning-box" *ngIf="selectedSeller">
             <div class="cwb-title">Você já possui uma pesagem em andamento:</div>
             <div class="cwb-details">
               <span>📍 Fazenda: <strong>{{ selectedSeller?.farm_name || 'Propriedade em pesagem' }}</strong></span>
@@ -950,6 +955,37 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
             </button>
             <button type="button" class="btn btn-secondary btn-lg btn-block" (click)="closeCancelConfirmModal()">
               ⬅ Continuar Pesagem Atual
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE PESAGEM                  -->
+      <!-- ============================================================ -->
+      <div *ngIf="showDeleteModal()" class="modal-overlay animate-fade" (click)="closeDeleteModal()">
+        <div class="modal-dialog modal-danger-dialog" (click)="$event.stopPropagation()">
+          <div class="modal-icon text-danger">🗑️</div>
+          <h3 class="modal-title">Excluir Pesagem?</h3>
+
+          <div class="cancel-warning-box" *ngIf="sessionToDelete()">
+            <div class="cwb-title">{{ sessionToDelete()?.farm_name }}</div>
+            <div class="cwb-details">
+              <span>📅 Data: <strong>{{ sessionToDelete()?.created_at ? (sessionToDelete()?.created_at | date:'dd/MM/yyyy HH:mm') : sessionToDelete()?.session_date }}</strong></span>
+              <span>⚖️ Total: <strong>{{ sessionToDelete()?.total_animals }} cabeças</strong> ({{ sessionToDelete()?.total_weight_kg | number:'1.0-1' }} kg)</span>
+            </div>
+          </div>
+
+          <p class="modal-desc">
+            Tem certeza que deseja excluir permanentemente este registro de pesagem? Esta ação não poderá ser desfeita.
+          </p>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-danger btn-lg btn-block" (click)="confirmDeleteSession()">
+              🗑️ Sim, Excluir Pesagem
+            </button>
+            <button type="button" class="btn btn-secondary btn-lg btn-block" (click)="closeDeleteModal()">
+              ✕ Cancelar
             </button>
           </div>
         </div>
@@ -2918,6 +2954,27 @@ import { WeighingItem, WeighingSession } from '../../models/weighing.model';
       gap: 0.5rem;
       width: 100%;
     }
+
+    .btn-outline-danger {
+      background: transparent;
+      border: 1.5px solid var(--color-danger, #ef4444);
+      color: var(--color-danger, #ef4444);
+      font-weight: 600;
+      border-radius: var(--radius-md, 8px);
+      padding: 0.65rem 1rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-outline-danger:hover, .btn-outline-danger:active {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: #f87171;
+    }
   `]
 })
 export class SellerComponent implements OnInit {
@@ -2946,6 +3003,8 @@ export class SellerComponent implements OnInit {
   activeViewingSession: WeighingSession | null = null;
   weightAnomalyWarning = signal<{ isAnomaly: boolean; avg: number; message: string } | null>(null);
   showCancelConfirmModal = false;
+  sessionToDelete = signal<WeighingSession | null>(null);
+  showDeleteModal = signal<boolean>(false);
 
   // Pesagem em andamento bloqueia a aba de pesagens anteriores
   isWeighingInProgress = computed(() => {
@@ -3071,14 +3130,14 @@ export class SellerComponent implements OnInit {
 
   async loadSellers() {
     const data = await this.supabase.getSellers();
-    if (data && data.length > 0) {
+    if (data) {
       this.sellers.set(data);
     }
   }
 
   async loadPastSessions() {
     const data = await this.supabase.getWeighingSessions();
-    if (data && data.length > 0) {
+    if (data) {
       this.pastSessions.set(data);
     }
   }
@@ -3175,13 +3234,28 @@ export class SellerComponent implements OnInit {
     this.newSeller = { farm_name: '', responsible_name: '', location: '', phone: '' };
   }
 
+  canGoToStep(step: number): boolean {
+    if (step === 1) return true;
+    if (step === 2) {
+      return !!(this.selectedSeller && this.sessionWeigher && this.sessionDate);
+    }
+    if (step === 3) {
+      return !!(this.selectedSeller && this.sessionWeigher && this.sessionDate && this.weighingItems().length > 0);
+    }
+    return false;
+  }
+
   proceedToWeighing() {
+    if (!this.canGoToStep(2)) return;
     this.audio.playClick();
     this.currentStep.set(2);
     this.scrollToTop();
   }
 
   goToStep(step: number) {
+    if (!this.canGoToStep(step)) {
+      return;
+    }
     this.audio.playClick();
     this.currentStep.set(step);
     this.scrollToTop();
@@ -3194,7 +3268,7 @@ export class SellerComponent implements OnInit {
     this.audio.playClick();
     this.editingSessionOriginal = JSON.parse(JSON.stringify(session));
     this.activeSessionId.set(session.id);
-    
+
     // Tenta encontrar o vendedor correspondente
     const seller = this.sellers().find(s => s.id === session.seller_id);
     if (seller) {
@@ -3247,14 +3321,52 @@ export class SellerComponent implements OnInit {
     this.activeViewingSession = null;
   }
 
-  async deletePastSession(sessionId: string) {
-    if (!confirm('Deseja realmente excluir este registro de pesagem?')) return;
+  promptDeleteSession(sessionOrId: WeighingSession | string) {
+    this.audio.playClick();
+    if (typeof sessionOrId === 'string') {
+      const found = this.pastSessions().find(s => s.id === sessionOrId);
+      this.sessionToDelete.set(found || null);
+    } else {
+      this.sessionToDelete.set(sessionOrId);
+    }
+    this.showDeleteModal.set(true);
+  }
+
+  closeDeleteModal() {
+    this.audio.playClick();
+    this.showDeleteModal.set(false);
+    this.sessionToDelete.set(null);
+  }
+
+  async confirmDeleteSession() {
+    const session = this.sessionToDelete();
+    if (!session || !session.id) {
+      this.closeDeleteModal();
+      return;
+    }
+
+    const sessionId = session.id;
     this.audio.playDelete();
-    await this.supabase.deleteWeighingSession(sessionId);
+    this.showDeleteModal.set(false);
+    this.sessionToDelete.set(null);
+
+    // Atualização otimista e reativa imediata na lista de sessões
+    this.pastSessions.update(sessions => sessions.filter(s => s.id !== sessionId));
+
+    if (this.activeViewingSession?.id === sessionId) {
+      this.closeViewingSession();
+    }
+
     if (this.activeSessionId() === sessionId) {
       this.cancelEditing();
     }
+
+    await this.supabase.deleteWeighingSession(sessionId);
     await this.loadPastSessions();
+  }
+
+  deletePastSession(sessionId: string) {
+    this.promptDeleteSession(sessionId);
   }
 
   exportPastSessionCsv(session: WeighingSession) {
